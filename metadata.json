@@ -1,0 +1,8 @@
+{
+  "name": "Aesthetic Dental Clinic",
+  "description": "Production-ready dental clinic platform with Razorpay test payment integration, server-side signature verification, temporary slot holds, and Supabase architecture.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

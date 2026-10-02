@@ -71,20 +71,39 @@ const RAZORPAY_WEBHOOK_SECRET = process.env.RAZORPAY_WEBHOOK_SECRET || 'whsec_de
 const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
 
-export const supabaseServer = supabaseUrl && supabaseKey && !supabaseUrl.includes('placeholder')
-  ? createClient(supabaseUrl, supabaseKey)
-  : null;
+export const supabaseServer = (() => {
+  try {
+    if (
+      supabaseUrl &&
+      supabaseKey &&
+      !supabaseUrl.includes('placeholder') &&
+      (supabaseUrl.startsWith('http://') || supabaseUrl.startsWith('https://'))
+    ) {
+      return createClient(supabaseUrl, supabaseKey);
+    }
+  } catch (err: any) {
+    console.warn('[Supabase Server Init Warning]:', err?.message || err);
+  }
+  return null;
+})();
 
-const ai = process.env.GEMINI_API_KEY
-  ? new GoogleGenAI({
-      apiKey: process.env.GEMINI_API_KEY,
-      httpOptions: {
-        headers: {
-          'User-Agent': 'aistudio-build',
+const ai = (() => {
+  try {
+    if (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY.trim() !== '') {
+      return new GoogleGenAI({
+        apiKey: process.env.GEMINI_API_KEY,
+        httpOptions: {
+          headers: {
+            'User-Agent': 'aistudio-build',
+          },
         },
-      },
-    })
-  : null;
+      });
+    }
+  } catch (err: any) {
+    console.warn('[Gemini AI Init Warning]:', err?.message || err);
+  }
+  return null;
+})();
 
 // ==============================================================================
 // TIMEZONE & CALENDAR HELPERS (Asia/Kolkata)

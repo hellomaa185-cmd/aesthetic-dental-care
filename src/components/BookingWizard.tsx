@@ -129,6 +129,8 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
     }
   }, [isOpen, preselectedService, preselectedDoctor, services, doctors]);
 
+  const [slotLoadError, setSlotLoadError] = useState<string | null>(null);
+
   // Query real-time available slots whenever doctor, date, or service changes
   useEffect(() => {
     if (selectedDoctor && selectedDate) {
@@ -138,6 +140,7 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
 
   const loadSlots = async (doctorId: string, date: string, serviceId?: string) => {
     setIsLoadingSlots(true);
+    setSlotLoadError(null);
     setErrorMessage(null);
     try {
       const data = await apiClient.getAvailableSlots(doctorId, date, serviceId);
@@ -154,9 +157,57 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
       }
     } catch (err: any) {
       console.error('Failed to load slots:', err);
+      setSlotLoadError(err.message || 'We could not load availability right now. Please try again.');
+      setAvailableSlots([]);
+      setSelectedSlot('');
     } finally {
       setIsLoadingSlots(false);
     }
+  };
+
+  // Intelligent Next Available Day Finder
+  const handleFindNextAvailableDay = async () => {
+    if (!selectedDoctor || !selectedDate) return;
+    setIsLoadingSlots(true);
+    setSlotLoadError(null);
+
+    const [y, m, d] = selectedDate.split('-').map(Number);
+    const cursor = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+
+    for (let i = 1; i <= 14; i++) {
+      cursor.setUTCDate(cursor.getUTCDate() + 1);
+      const dayFormatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'Asia/Kolkata',
+        weekday: 'long',
+      });
+      const dayOfWeek = dayFormatter.format(cursor);
+
+      const schedule = selectedDoctor.schedule?.find(
+        (s) => s.dayOfWeek.toLowerCase() === dayOfWeek.toLowerCase()
+      );
+
+      if (schedule && schedule.isActive) {
+        const year = cursor.getUTCFullYear();
+        const month = String(cursor.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(cursor.getUTCDate()).padStart(2, '0');
+        const nextDateStr = `${year}-${month}-${day}`;
+
+        try {
+          const res = await apiClient.getAvailableSlots(selectedDoctor.id, nextDateStr, selectedService?.id);
+          const avail = (res?.slots || []).filter((s) => s.isAvailable);
+          if (avail.length > 0) {
+            setSelectedDate(nextDateStr);
+            setAvailableSlots(res.slots);
+            setSelectedSlot(avail[0].time);
+            setIsLoadingSlots(false);
+            return;
+          }
+        } catch {}
+      }
+    }
+
+    setIsLoadingSlots(false);
+    setSlotLoadError('No open slots found in the next 14 days. Please choose another date or doctor.');
   };
 
   // Live countdown timer for 10-minute hold window
@@ -586,33 +637,112 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
               {/* Slot Grid */}
               <div>
                 <div className="flex items-center justify-between mb-2 text-xs font-mono text-[#202321]/60">
-                  <span>REAL-TIME AVAILABLE SLOTS</span>
+                  <span>
+                    REAL-TIME AVAILABLE SLOTS
+                    {availableSlots.length > 0 && !isLoadingSlots && (
+                      <span className="text-[#173A35] font-semibold ml-1.5">
+                        ({availableSlots.filter((s) => s.isAvailable).length} open)
+                      </span>
+                    )}
+                  </span>
                   {isLoadingSlots && (
                     <span className="text-[#173A35] flex items-center gap-1">
-                      <Loader2 className="w-3 h-3 animate-spin"/> Synchronizing slots...
+                      <Loader2 className="w-3 h-3 animate-spin"/> Checking live availability...
                     </span>
                   )}
                 </div>
 
-                {availableSlots.length === 0 && !isLoadingSlots ? (
-                  <div className="p-6 text-center text-xs text-[#202321]/60 bg-[#EAE6DE]/30 rounded-2xl border border-[#202321]/8 space-y-3">
-                    <p>No slots remaining for this date. Past times for today are automatically closed.</p>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const [y, m, d] = selectedDate.split('-').map(Number);
-                        const nextDate = new Date(Date.UTC(y, m - 1, d + 1, 12, 0, 0));
-                        const nextDateStr = nextDate.toISOString().split('T')[0];
-                        setSelectedDate(nextDateStr);
-                      }}
-                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#173A35] text-[#F7F5F0] text-xs font-medium hover:bg-[#202321] transition-colors cursor-pointer"
-                    >
-                      <span>Check Next Available Day</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </button>
+                {isLoadingSlots ? (
+                  <div className="p-8 text-center text-xs text-[#202321]/60 bg-[#EAE6DE]/30 rounded-2xl border border-[#202321]/8 flex flex-col items-center justify-center gap-2">
+                    <Loader2 className="w-5 h-5 animate-spin text-[#173A35]" />
+                    <span>Checking live availability in Asia/Kolkata...</span>
                   </div>
+                ) : availableSlots.filter((s) => s.isAvailable).length === 0 ? (
+                  (() => {
+                    const emptyState = (() => {
+                      if (slotLoadError) {
+                        return {
+                          title: "We couldn't load availability right now.",
+                          desc: slotLoadError,
+                          buttonText: 'Try Again',
+                          isSearch: false,
+                        };
+                      }
+
+                      if (!selectedDoctor || !selectedDate) {
+                        return {
+                          title: 'Select an appointment date',
+                          desc: 'Choose a date on the calendar to view doctor availability.',
+                          buttonText: null,
+                          isSearch: false,
+                        };
+                      }
+
+                      const [y, m, d] = selectedDate.split('-').map(Number);
+                      const dateObj = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+                      const dayName = new Intl.DateTimeFormat('en-US', {
+                        timeZone: 'Asia/Kolkata',
+                        weekday: 'long',
+                      }).format(dateObj);
+
+                      const schedule = selectedDoctor.schedule?.find(
+                        (s) => s.dayOfWeek.toLowerCase() === dayName.toLowerCase()
+                      );
+                      const isWorking = schedule?.isActive;
+
+                      if (!isWorking) {
+                        return {
+                          title: 'Clinic closed on this day',
+                          desc: `${selectedDoctor.name} does not have clinical hours on ${dayName}s.`,
+                          buttonText: 'Check Next Available Day',
+                          isSearch: true,
+                        };
+                      }
+
+                      if (selectedDate === minDate) {
+                        return {
+                          title: 'No appointments remaining today',
+                          desc: 'All consultation windows for today have passed or are booked.',
+                          buttonText: 'Check Next Available Day',
+                          isSearch: true,
+                        };
+                      }
+
+                      return {
+                        title: 'Fully booked for this date',
+                        desc: 'All appointment slots for this date are currently reserved.',
+                        buttonText: 'Check Next Available Day',
+                        isSearch: true,
+                      };
+                    })();
+
+                    return (
+                      <div className="p-6 text-center text-xs text-[#202321]/70 bg-[#EAE6DE]/30 rounded-2xl border border-[#202321]/8 space-y-3">
+                        <div className="space-y-1">
+                          <p className="font-semibold text-[#202321]">{emptyState.title}</p>
+                          <p className="font-light text-[#202321]/60 text-[11px]">{emptyState.desc}</p>
+                        </div>
+                        {emptyState.buttonText && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (emptyState.isSearch) {
+                                handleFindNextAvailableDay();
+                              } else {
+                                loadSlots(selectedDoctor!.id, selectedDate, selectedService?.id);
+                              }
+                            }}
+                            className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-full bg-[#173A35] text-[#F7F5F0] text-xs font-medium hover:bg-[#202321] transition-colors cursor-pointer shadow-xs"
+                          >
+                            <span>{emptyState.buttonText}</span>
+                            <ArrowRight className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })()
                 ) : (
-                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-[200px] overflow-y-auto pr-1">
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-[220px] overflow-y-auto pr-1">
                     {availableSlots.map((slot) => {
                       const isSelected = selectedSlot === slot.time;
                       return (

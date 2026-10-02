@@ -578,11 +578,29 @@ const syncAppointmentToSupabase = async (appt: Appointment) => {
     else if (appt.status === 'cancelled' || appt.status === 'payment_failed') statusEnum = 'cancelled';
     else if (appt.status === 'completed') statusEnum = 'completed';
 
-    const existingSupabaseId = appointmentSupabaseIdMap.get(appt.id);
+    let existingSupabaseId = appointmentSupabaseIdMap.get(appt.id);
+    if (!existingSupabaseId) {
+      const { data: existingAtSlot } = await supabaseServer
+        .from('appointments')
+        .select('id, status')
+        .eq('doctor_id', doctorId)
+        .eq('start_at', startAt)
+        .neq('status', 'cancelled')
+        .limit(1)
+        .maybeSingle();
+
+      if (existingAtSlot) {
+        existingSupabaseId = existingAtSlot.id;
+        appointmentSupabaseIdMap.set(appt.id, existingAtSlot.id);
+      }
+    }
+
     if (existingSupabaseId) {
       const { error } = await supabaseServer
         .from('appointments')
         .update({
+          patient_id: patientId,
+          service_id: serviceId,
           status: statusEnum,
           patient_notes: appt.notes || null,
           updated_at: new Date().toISOString(),
@@ -605,6 +623,27 @@ const syncAppointmentToSupabase = async (appt: Appointment) => {
         .single();
       if (error) {
         console.warn('[Supabase Sync] Appointment insert error:', error.message);
+        // If conflict error occurred, find the conflicting row and update it
+        const { data: conflictRow } = await supabaseServer
+          .from('appointments')
+          .select('id')
+          .eq('doctor_id', doctorId)
+          .eq('start_at', startAt)
+          .limit(1)
+          .maybeSingle();
+        if (conflictRow) {
+          appointmentSupabaseIdMap.set(appt.id, conflictRow.id);
+          await supabaseServer
+            .from('appointments')
+            .update({
+              patient_id: patientId,
+              service_id: serviceId,
+              status: statusEnum,
+              patient_notes: appt.notes || null,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', conflictRow.id);
+        }
       } else if (data) {
         appointmentSupabaseIdMap.set(appt.id, data.id);
       }
@@ -727,6 +766,17 @@ const syncAppointmentHoldToSupabase = async (hold: {
     const startAt = `${hold.holdDate}T${hold.startTime}:00+05:30`;
     const endAt = `${hold.holdDate}T${hold.endTime}:00+05:30`;
 
+    // Map in-memory hold status to valid Supabase constraint values: 'active', 'released', 'expired'
+    let holdStatus = 'active';
+    if (hold.status === 'active' || hold.status === 'held') {
+      holdStatus = 'active';
+    } else if (hold.status === 'expired') {
+      holdStatus = 'expired';
+    } else if (hold.status === 'released' || hold.status === 'cancelled' || hold.status === 'confirmed' || hold.status === 'converted' || hold.status === 'completed') {
+      holdStatus = 'released';
+    }
+
+    let holdSupabaseId: string | null = null;
     if (supabaseApptId) {
       const { data: existingHold } = await supabaseServer
         .from('appointment_holds')
@@ -735,17 +785,31 @@ const syncAppointmentHoldToSupabase = async (hold: {
         .limit(1)
         .maybeSingle();
 
-      if (existingHold) {
-        const { error } = await supabaseServer
-          .from('appointment_holds')
-          .update({
-            status: hold.status,
-            expires_at: hold.expiresAt,
-          })
-          .eq('id', existingHold.id);
-        if (error) console.warn('[Supabase Sync] Hold update error:', error.message);
-        return;
-      }
+      if (existingHold) holdSupabaseId = existingHold.id;
+    }
+
+    if (!holdSupabaseId) {
+      const { data: existingSlotHold } = await supabaseServer
+        .from('appointment_holds')
+        .select('id')
+        .eq('doctor_id', doctorId)
+        .eq('start_at', startAt)
+        .eq('status', 'active')
+        .limit(1)
+        .maybeSingle();
+      if (existingSlotHold) holdSupabaseId = existingSlotHold.id;
+    }
+
+    if (holdSupabaseId) {
+      const { error } = await supabaseServer
+        .from('appointment_holds')
+        .update({
+          status: holdStatus,
+          expires_at: hold.expiresAt,
+        })
+        .eq('id', holdSupabaseId);
+      if (error) console.warn('[Supabase Sync] Hold update error:', error.message);
+      return;
     }
 
     const { error } = await supabaseServer
@@ -756,7 +820,7 @@ const syncAppointmentHoldToSupabase = async (hold: {
         start_at: startAt,
         end_at: endAt,
         expires_at: hold.expiresAt,
-        status: hold.status,
+        status: holdStatus,
       });
     if (error) console.warn('[Supabase Sync] Hold insert error:', error.message);
   } catch (err: any) {

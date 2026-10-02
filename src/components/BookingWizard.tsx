@@ -13,9 +13,9 @@ import {
   RefreshCw,
   ArrowUpRight,
   ShieldCheck,
+  MessageCircle,
 } from 'lucide-react';
-import confetti from 'canvas-confetti';
-import { CLINIC_DOCTORS, CLINIC_SERVICES } from '../data/mockData';
+import { CLINIC_DOCTORS, CLINIC_SERVICES, getAppointmentWhatsAppLink } from '../data/mockData';
 import { Service, Doctor, TimeSlot, Appointment, Payment, CreateOrderResponse } from '../types';
 import { apiClient } from '../lib/api';
 
@@ -295,15 +295,6 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
                 setConfirmedPayment(verifyRes.payment || null);
                 setStep(7); // Confirmation
                 if (onBookingSuccess) onBookingSuccess(verifyRes.appointment);
-
-                try {
-                  confetti({
-                    particleCount: 50,
-                    spread: 50,
-                    origin: { y: 0.6 },
-                    colors: ['#173A35', '#78958B', '#C7A46A', '#202321'],
-                  });
-                } catch {}
               } else {
                 setErrorMessage(verifyRes.error || 'Your payment could not be verified. Your appointment has not been confirmed.');
                 setStep(8);
@@ -358,15 +349,6 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
           setShowFallbackModal(false);
           setStep(7);
           if (onBookingSuccess) onBookingSuccess(apptRes.appointment);
-
-          try {
-            confetti({
-              particleCount: 50,
-              spread: 50,
-              origin: { y: 0.6 },
-              colors: ['#173A35', '#78958B', '#C7A46A', '#202321'],
-            });
-          } catch {}
         }
       } else {
         setErrorMessage('Test payment verification failed.');
@@ -853,7 +835,7 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
 
           {/* STEP 7: APPOINTMENT CONFIRMED SCREEN */}
           {step === 7 && confirmedAppt && (
-            <div className="space-y-6 text-center py-4">
+            <div className="space-y-6 text-center py-4 animate-reveal-up">
               <div className="w-14 h-14 rounded-full bg-[#173A35]/10 border border-[#173A35]/30 text-[#173A35] flex items-center justify-center mx-auto">
                 <CheckCircle2 className="w-8 h-8" />
               </div>
@@ -879,11 +861,15 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
                   </div>
                   <div className="text-right">
                     <span className="text-[10px] font-mono text-[#202321]/50 uppercase">PAYMENT STATUS</span>
-                    <div className="font-mono font-bold text-emerald-800">PAID ₹120</div>
+                    <div className="font-mono font-bold text-emerald-800">PAID ₹{confirmedAppt.totalAmount || 120}</div>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
+                  <div className="col-span-2 pb-2 border-b border-[#202321]/6">
+                    <span className="text-[#202321]/50 text-[11px] block">Patient Name:</span>
+                    <div className="font-medium text-[#202321] text-sm">{confirmedAppt.patientName}</div>
+                  </div>
                   <div>
                     <span className="text-[#202321]/50">Doctor:</span>
                     <div className="font-medium text-[#202321]">{confirmedAppt.doctorName}</div>
@@ -914,21 +900,34 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
                 </div>
               </div>
 
-              <div className="flex items-center justify-center gap-3 pt-2">
-                <button
-                  onClick={() => window.print()}
-                  className="px-5 py-2.5 rounded-full border border-[#202321]/15 hover:border-[#173A35] text-xs font-medium text-[#202321] flex items-center gap-2 cursor-pointer"
+              {/* WhatsApp Notification Action */}
+              <div className="max-w-md mx-auto pt-1 space-y-3">
+                <a
+                  href={getAppointmentWhatsAppLink(confirmedAppt)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full py-3.5 px-6 rounded-full bg-emerald-700 hover:bg-emerald-600 text-[#F7F5F0] text-xs font-semibold tracking-wider uppercase flex items-center justify-center gap-2.5 shadow-md transition-all cursor-pointer"
                 >
-                  <Printer className="w-3.5 h-3.5 text-[#78958B]" />
-                  <span>Print Pass</span>
-                </button>
+                  <MessageCircle className="w-4 h-4 text-white" />
+                  <span>Notify us on WhatsApp</span>
+                </a>
 
-                <button
-                  onClick={onClose}
-                  className="px-6 py-2.5 rounded-full bg-[#173A35] hover:bg-[#202321] text-[#F7F5F0] text-xs font-medium tracking-wide cursor-pointer"
-                >
-                  Done
-                </button>
+                <div className="flex items-center justify-center gap-3">
+                  <button
+                    onClick={() => window.print()}
+                    className="px-5 py-2.5 rounded-full border border-[#202321]/15 hover:border-[#173A35] text-xs font-medium text-[#202321] flex items-center gap-2 cursor-pointer"
+                  >
+                    <Printer className="w-3.5 h-3.5 text-[#78958B]" />
+                    <span>Print Pass</span>
+                  </button>
+
+                  <button
+                    onClick={onClose}
+                    className="px-6 py-2.5 rounded-full bg-[#173A35] hover:bg-[#202321] text-[#F7F5F0] text-xs font-medium tracking-wide cursor-pointer"
+                  >
+                    Done
+                  </button>
+                </div>
               </div>
             </div>
           )}

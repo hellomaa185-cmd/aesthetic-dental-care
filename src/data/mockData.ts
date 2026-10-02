@@ -26,9 +26,35 @@ export const INITIAL_CLINIC_SETTINGS: ClinicSettings = {
 export const CLINIC_WHATSAPP_NUMBER = '918049128800';
 
 export const getWhatsAppLink = (customMessage?: string): string => {
-  const defaultMsg = 'Hello Aesthetic Dental Clinic, I would like some help regarding a dental concern and would like to know more about consultation.';
+  const defaultMsg = 'Hello Aesthetic Dental Clinic, I would like some assistance with an appointment.';
   const message = encodeURIComponent(customMessage || defaultMsg);
   return `https://wa.me/${CLINIC_WHATSAPP_NUMBER}?text=${message}`;
+};
+
+export const getAppointmentWhatsAppLink = (appointment: {
+  id: string;
+  patientName: string;
+  doctorName: string;
+  serviceName: string;
+  appointmentDate: string;
+  timeSlot: string;
+  totalAmount?: number;
+}): string => {
+  const msg = `Hello Aesthetic Dental Clinic,
+
+My appointment has been confirmed.
+
+Appointment Reference: ${appointment.id}
+Patient: ${appointment.patientName}
+Doctor: ${appointment.doctorName}
+Treatment: ${appointment.serviceName}
+Date: ${appointment.appointmentDate}
+Time: ${appointment.timeSlot}
+Payment: Confirmed
+Amount: ₹${appointment.totalAmount || 120}
+
+Thank you.`;
+  return `https://wa.me/${CLINIC_WHATSAPP_NUMBER}?text=${encodeURIComponent(msg)}`;
 };
 
 export const INITIAL_PRICING = {

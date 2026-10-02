@@ -5,7 +5,7 @@ import { getWhatsAppLink, CLINIC_WHATSAPP_NUMBER } from '../data/mockData';
 export const WhatsAppFloatingButton: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [customText, setCustomText] = useState(
-    'Hello Aesthetic Dental Clinic, I would like some help regarding a dental concern and would like to know more about consultation.'
+    'Hello Aesthetic Dental Clinic, I would like some assistance with an appointment.'
   );
 
   const QUICK_INTENTS = [

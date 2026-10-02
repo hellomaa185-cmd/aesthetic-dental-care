@@ -97,8 +97,17 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
   // Load active services and doctors from server on open
   useEffect(() => {
     if (isOpen) {
-      apiClient.getTreatments().then(res => setServices(res.treatments)).catch(() => {});
-      apiClient.getDoctors().then(res => setDoctors(res.doctors)).catch(() => {});
+      apiClient.getTreatments().then(res => {
+        if (res?.treatments && res.treatments.length > 0) {
+          setServices(res.treatments);
+        }
+      }).catch(() => {});
+
+      apiClient.getDoctors().then(res => {
+        if (res?.doctors && res.doctors.length > 0) {
+          setDoctors(res.doctors);
+        }
+      }).catch(() => {});
     }
   }, [isOpen]);
 
@@ -132,9 +141,10 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
     setErrorMessage(null);
     try {
       const data = await apiClient.getAvailableSlots(doctorId, date, serviceId);
-      setAvailableSlots(data.slots);
+      const slots = data?.slots || [];
+      setAvailableSlots(slots);
       
-      const available = data.slots.filter((s) => s.isAvailable);
+      const available = slots.filter((s) => s.isAvailable);
       if (available.length > 0) {
         if (!available.some(s => s.time === selectedSlot)) {
           setSelectedSlot(available[0].time);
@@ -142,8 +152,8 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
       } else {
         setSelectedSlot('');
       }
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      console.error('Failed to load slots:', err);
     } finally {
       setIsLoadingSlots(false);
     }
@@ -510,11 +520,19 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
                       }`}
                     >
                       <div className="flex items-center gap-3 mb-2">
-                        <img
-                          src={doctor.avatarUrl}
-                          alt={doctor.name}
-                          className="w-10 h-10 rounded-full object-cover border border-white/20"
-                        />
+                        {doctor.avatarUrl ? (
+                          <img
+                            src={doctor.avatarUrl}
+                            alt={doctor.name}
+                            className="w-10 h-10 rounded-full object-cover border border-white/20"
+                          />
+                        ) : (
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center font-serif text-sm font-semibold border ${
+                            isSelected ? 'bg-white/20 text-white border-white/30' : 'bg-[#173A35]/10 text-[#173A35] border-[#173A35]/20'
+                          }`}>
+                            {doctor.name.replace(/^Dr\.\s*/i, '').charAt(0)}
+                          </div>
+                        )}
                         <div>
                           <div className="font-serif text-base font-medium leading-snug">{doctor.name}</div>
                           <div className={`text-[11px] font-mono ${isSelected ? 'text-[#C7A46A]' : 'text-[#78958B]'}`}>
@@ -595,8 +613,21 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
                 </div>
 
                 {availableSlots.length === 0 && !isLoadingSlots ? (
-                  <div className="p-6 text-center text-xs text-[#202321]/60 bg-[#EAE6DE]/30 rounded-2xl border border-[#202321]/8">
-                    No slots remaining for this date. Past times for today are automatically closed. Please select another date.
+                  <div className="p-6 text-center text-xs text-[#202321]/60 bg-[#EAE6DE]/30 rounded-2xl border border-[#202321]/8 space-y-3">
+                    <p>No slots remaining for this date. Past times for today are automatically closed.</p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const [y, m, d] = selectedDate.split('-').map(Number);
+                        const nextDate = new Date(Date.UTC(y, m - 1, d + 1, 12, 0, 0));
+                        const nextDateStr = nextDate.toISOString().split('T')[0];
+                        setSelectedDate(nextDateStr);
+                      }}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#173A35] text-[#F7F5F0] text-xs font-medium hover:bg-[#202321] transition-colors cursor-pointer"
+                    >
+                      <span>Check Next Available Day</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 ) : (
                   <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-[200px] overflow-y-auto pr-1">

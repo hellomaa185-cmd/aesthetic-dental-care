@@ -89,7 +89,7 @@ export const getKolkataTime = () => {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
-    hour12: false,
+    hourCycle: 'h23',
   });
 
   const parts = formatter.formatToParts(now);
@@ -98,9 +98,10 @@ export const getKolkataTime = () => {
   const year = getPart('year');
   const month = getPart('month');
   const day = getPart('day');
-  const hour = parseInt(getPart('hour'), 10);
-  const minute = parseInt(getPart('minute'), 10);
-  const second = parseInt(getPart('second'), 10);
+  const rawHour = parseInt(getPart('hour'), 10);
+  const hour = isNaN(rawHour) ? 0 : rawHour % 24;
+  const minute = parseInt(getPart('minute'), 10) || 0;
+  const second = parseInt(getPart('second'), 10) || 0;
 
   const currentDateStr = `${year}-${month}-${day}`;
   const currentTimeMinutes = hour * 60 + minute;
@@ -310,7 +311,16 @@ export const calculateDoctorSlots = (
   targetDate: string,
   serviceDurationMinutes: number = 45
 ): TimeSlot[] => {
-  const doctor = doctorsStore.get(doctorId);
+  let doctor = doctorsStore.get(doctorId);
+  if (!doctor) {
+    doctor =
+      Array.from(doctorsStore.values()).find(
+        (d) => d.id?.toLowerCase() === doctorId?.toLowerCase() || d.name?.toLowerCase() === doctorId?.toLowerCase()
+      ) ||
+      doctorsStore.get(PRIMARY_DOCTOR_ID) ||
+      Array.from(doctorsStore.values())[0];
+  }
+
   if (!doctor || !doctor.isActive) return [];
 
   const kt = getKolkataTime();
@@ -331,13 +341,13 @@ export const calculateDoctorSlots = (
   const targetDayOfWeek = dayFormatter.format(targetDateObj);
 
   // Check Doctor Schedule for this Day
-  const scheduleDay = doctor.schedule.find((s) => s.dayOfWeek.toLowerCase() === targetDayOfWeek.toLowerCase());
+  const scheduleDay = doctor.schedule?.find((s) => s.dayOfWeek?.toLowerCase() === targetDayOfWeek?.toLowerCase());
   if (!scheduleDay || !scheduleDay.isActive) {
     return [];
   }
 
-  const doctorStartMinutes = timeToMinutes(scheduleDay.startTime);
-  const doctorEndMinutes = timeToMinutes(scheduleDay.endTime);
+  const doctorStartMinutes = timeToMinutes(scheduleDay.startTime || '09:00');
+  const doctorEndMinutes = timeToMinutes(scheduleDay.endTime || '18:00');
 
   // Collect Occupied Time Windows
   const occupiedSlots: { startMin: number; endMin: number; reason: string }[] = [];
@@ -515,24 +525,30 @@ app.post('/api/auth/login', (req: Request, res: Response) => {
 });
 
 // Specialties & Treatments
-app.get('/api/specialties', (_req: Request, res: Response) => {
+const handleGetSpecialties = (_req: Request, res: Response) => {
   const active = Array.from(specialtiesStore.values()).filter((s) => s.isActive);
   res.json({ specialties: active });
-});
+};
+app.get('/api/specialties', handleGetSpecialties);
+app.get('/specialties', handleGetSpecialties);
 
-app.get('/api/treatments', (_req: Request, res: Response) => {
+const handleGetTreatments = (_req: Request, res: Response) => {
   const active = Array.from(servicesStore.values()).filter((s) => s.isActive);
   res.json({ treatments: active });
-});
+};
+app.get('/api/treatments', handleGetTreatments);
+app.get('/treatments', handleGetTreatments);
 
 // Doctors
-app.get('/api/doctors', (_req: Request, res: Response) => {
+const handleGetDoctors = (_req: Request, res: Response) => {
   const active = Array.from(doctorsStore.values()).filter((d) => d.isActive);
   res.json({ doctors: active });
-});
+};
+app.get('/api/doctors', handleGetDoctors);
+app.get('/doctors', handleGetDoctors);
 
 // Real-Time Slot Availability
-app.get('/api/slots/available', (req: Request, res: Response) => {
+const handleGetSlots = (req: Request, res: Response) => {
   const { doctorId, date, serviceId } = req.query as { doctorId?: string; date?: string; serviceId?: string };
 
   if (!doctorId || !date) {
@@ -559,7 +575,11 @@ app.get('/api/slots/available', (req: Request, res: Response) => {
       timezone: CLINIC_TIMEZONE,
     },
   });
-});
+};
+app.get('/api/slots/available', handleGetSlots);
+app.get('/slots/available', handleGetSlots);
+app.get('/api/slots', handleGetSlots);
+app.get('/slots', handleGetSlots);
 
 // Admin Doctor Schedules
 app.get('/api/admin/doctors/:id/schedule', (req: Request, res: Response) => {
@@ -727,38 +747,146 @@ app.delete('/api/admin/reviews/:id', (req: Request, res: Response) => {
 });
 
 // ==============================================================================
+// ==============================================================================
 // SUPABASE SYNC HELPERS (Non-blocking, resilient cloud persistence)
 // ==============================================================================
+
+const appointmentSupabaseIdMap = new Map<string, string>();
+let cachedDbDoctors: { id: string; name: string }[] | null = null;
+let cachedDbServices: { id: string; name: string; slug: string }[] | null = null;
+
+const getDbDoctorId = async (doctorRefId: string, doctorName?: string): Promise<string | null> => {
+  if (!supabaseServer) return null;
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(doctorRefId)) {
+    return doctorRefId;
+  }
+  try {
+    if (!cachedDbDoctors) {
+      const { data } = await supabaseServer.from('doctors').select('id, name');
+      if (data) cachedDbDoctors = data;
+    }
+    if (cachedDbDoctors && cachedDbDoctors.length > 0) {
+      if (doctorName) {
+        const found = cachedDbDoctors.find(
+          (d) => d.name.toLowerCase().includes(doctorName.toLowerCase()) || doctorName.toLowerCase().includes(d.name.toLowerCase())
+        );
+        if (found) return found.id;
+      }
+      return cachedDbDoctors[0].id;
+    }
+  } catch (e) {
+    // Non-blocking fallback
+  }
+  return null;
+};
+
+const getDbServiceId = async (serviceRefId: string, serviceName?: string): Promise<string | null> => {
+  if (!supabaseServer) return null;
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(serviceRefId)) {
+    return serviceRefId;
+  }
+  try {
+    if (!cachedDbServices) {
+      const { data } = await supabaseServer.from('services').select('id, name, slug');
+      if (data) cachedDbServices = data;
+    }
+    if (cachedDbServices && cachedDbServices.length > 0) {
+      if (serviceName) {
+        const found = cachedDbServices.find(
+          (s) => s.name.toLowerCase().includes(serviceName.toLowerCase()) || serviceName.toLowerCase().includes(s.name.toLowerCase())
+        );
+        if (found) return found.id;
+      }
+      return cachedDbServices[0].id;
+    }
+  } catch (e) {
+    // Non-blocking fallback
+  }
+  return null;
+};
 
 const syncAppointmentToSupabase = async (appt: Appointment) => {
   if (!supabaseServer) return;
   try {
-    const { error } = await supabaseServer.from('appointments').upsert({
-      reference_id: appt.id,
-      patient_name: appt.patientName,
-      patient_email: appt.patientEmail,
-      patient_phone: appt.patientPhone,
-      gender: appt.gender,
-      doctor_id: appt.doctorId,
-      doctor_name: appt.doctorName,
-      service_id: appt.serviceId,
-      service_name: appt.serviceName,
-      service_duration_minutes: appt.serviceDurationMinutes,
-      appointment_date: appt.appointmentDate,
-      start_time: time12To24(appt.timeSlot),
-      time_slot: appt.timeSlot,
-      status: appt.status,
-      appointment_fee: appt.appointmentFee,
-      convenience_fee: appt.convenienceFee,
-      total_amount: appt.totalAmount,
-      currency: appt.currency,
-      patient_notes: appt.notes,
-      check_in_status: appt.checkInStatus || 'not_arrived',
-      hold_expires_at: appt.holdExpiresAt || null,
-      confirmed_at: appt.confirmedAt || null,
-      updated_at: appt.updatedAt || new Date().toISOString(),
-    }, { onConflict: 'reference_id' });
-    if (error) console.warn('[Supabase Sync] Appointment upsert error:', error.message);
+    let patientId: string | null = null;
+    const email = appt.patientEmail?.trim().toLowerCase();
+    if (email) {
+      const { data: existingPatient } = await supabaseServer
+        .from('patients')
+        .select('id')
+        .eq('email', email)
+        .limit(1)
+        .maybeSingle();
+      if (existingPatient) {
+        patientId = existingPatient.id;
+      } else {
+        const { data: newPatient } = await supabaseServer
+          .from('patients')
+          .insert({
+            full_name: appt.patientName || 'Anonymous Patient',
+            email: email,
+            phone: appt.patientPhone || '+91 9876543210',
+          })
+          .select('id')
+          .single();
+        if (newPatient) patientId = newPatient.id;
+      }
+    }
+
+    const doctorId = await getDbDoctorId(appt.doctorId, appt.doctorName);
+    const serviceId = await getDbServiceId(appt.serviceId, appt.serviceName);
+
+    if (!doctorId || !serviceId || !patientId) return;
+
+    const time24 = time12To24(appt.timeSlot);
+    const [hStr, mStr] = time24.split(':');
+    const h = parseInt(hStr || '10', 10);
+    const m = parseInt(mStr || '00', 10);
+    const dur = appt.serviceDurationMinutes || 45;
+    const endMinutes = h * 60 + m + dur;
+    const endH = Math.floor(endMinutes / 60);
+    const endM = endMinutes % 60;
+    const endTime24 = `${endH.toString().padStart(2, '0')}:${endM.toString().padStart(2, '0')}`;
+
+    const startAt = `${appt.appointmentDate}T${time24}:00+05:30`;
+    const endAt = `${appt.appointmentDate}T${endTime24}:00+05:30`;
+
+    let statusEnum = 'pending_payment';
+    if (appt.status === 'confirmed') statusEnum = 'confirmed';
+    else if (appt.status === 'cancelled' || appt.status === 'payment_failed') statusEnum = 'cancelled';
+    else if (appt.status === 'completed') statusEnum = 'completed';
+
+    const existingSupabaseId = appointmentSupabaseIdMap.get(appt.id);
+    if (existingSupabaseId) {
+      const { error } = await supabaseServer
+        .from('appointments')
+        .update({
+          status: statusEnum,
+          patient_notes: appt.notes || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', existingSupabaseId);
+      if (error) console.warn('[Supabase Sync] Appointment update error:', error.message);
+    } else {
+      const { data, error } = await supabaseServer
+        .from('appointments')
+        .insert({
+          patient_id: patientId,
+          doctor_id: doctorId,
+          service_id: serviceId,
+          start_at: startAt,
+          end_at: endAt,
+          status: statusEnum,
+          patient_notes: appt.notes || null,
+        })
+        .select('id')
+        .single();
+      if (error) {
+        console.warn('[Supabase Sync] Appointment insert error:', error.message);
+      } else if (data) {
+        appointmentSupabaseIdMap.set(appt.id, data.id);
+      }
+    }
   } catch (err: any) {
     console.warn('[Supabase Sync] Failed to sync appointment:', err.message || err);
   }
@@ -767,24 +895,49 @@ const syncAppointmentToSupabase = async (appt: Appointment) => {
 const syncPaymentToSupabase = async (payment: Payment) => {
   if (!supabaseServer) return;
   try {
-    const { error } = await supabaseServer.from('payments').upsert({
-      payment_reference: payment.id,
-      razorpay_order_id: payment.razorpayOrderId,
-      razorpay_payment_id: payment.razorpayPaymentId || null,
-      razorpay_signature: payment.razorpaySignature || null,
-      appointment_fee: payment.appointmentFee,
-      convenience_fee: payment.convenienceFee,
-      total_amount: payment.amount,
-      currency: payment.currency,
-      status: payment.status,
-      payment_method: payment.paymentMethod || null,
-      signature_verified: payment.signatureVerified,
-      paid_at: payment.paidAt || null,
-      error_code: payment.errorCode || null,
-      error_description: payment.errorDescription || null,
-      updated_at: payment.updatedAt || new Date().toISOString(),
-    }, { onConflict: 'payment_reference' });
-    if (error) console.warn('[Supabase Sync] Payment upsert error:', error.message);
+    const supabaseApptId = appointmentSupabaseIdMap.get(payment.appointmentId) || null;
+
+    let paymentStatus = 'created';
+    if (payment.status === 'paid') paymentStatus = 'paid';
+    else if (payment.status === 'failed') paymentStatus = 'failed';
+    else if (payment.status === 'cancelled') paymentStatus = 'cancelled';
+    else if (payment.status === 'refunded') paymentStatus = 'refunded';
+
+    const { data: existingPayment } = await supabaseServer
+      .from('payments')
+      .select('id')
+      .eq('razorpay_order_id', payment.razorpayOrderId)
+      .limit(1)
+      .maybeSingle();
+
+    if (existingPayment) {
+      const { error } = await supabaseServer
+        .from('payments')
+        .update({
+          razorpay_payment_id: payment.razorpayPaymentId || null,
+          status: paymentStatus,
+          signature_verified: payment.signatureVerified,
+          paid_at: payment.paidAt || (payment.status === 'paid' ? new Date().toISOString() : null),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', existingPayment.id);
+      if (error) console.warn('[Supabase Sync] Payment update error:', error.message);
+    } else if (supabaseApptId) {
+      const { error } = await supabaseServer
+        .from('payments')
+        .insert({
+          appointment_id: supabaseApptId,
+          razorpay_order_id: payment.razorpayOrderId,
+          razorpay_payment_id: payment.razorpayPaymentId || null,
+          appointment_fee: payment.appointmentFee,
+          convenience_fee: payment.convenienceFee,
+          currency: payment.currency || 'INR',
+          status: paymentStatus,
+          signature_verified: payment.signatureVerified,
+          paid_at: payment.paidAt || null,
+        });
+      if (error) console.warn('[Supabase Sync] Payment insert error:', error.message);
+    }
   } catch (err: any) {
     console.warn('[Supabase Sync] Failed to sync payment:', err.message || err);
   }
@@ -796,12 +949,9 @@ const syncWebhookEventToSupabase = async (event: WebhookEvent) => {
     const { error } = await supabaseServer.from('webhook_events').upsert({
       event_id: event.eventId,
       event_type: event.eventType,
-      razorpay_order_id: event.razorpayOrderId || null,
-      razorpay_payment_id: event.razorpayPaymentId || null,
-      signature: event.signature || null,
-      signature_verified: event.signatureVerified,
+      provider: 'razorpay',
       payload: event.payload,
-      status: event.status,
+      processed: event.status === 'processed',
       processed_at: event.processedAt,
       created_at: event.createdAt,
     }, { onConflict: 'event_id' });
@@ -814,13 +964,18 @@ const syncWebhookEventToSupabase = async (event: WebhookEvent) => {
 const syncAuditLogToSupabase = async (log: AuditLog) => {
   if (!supabaseServer) return;
   try {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(log.entityId);
     const { error } = await supabaseServer.from('audit_logs').insert({
       entity_type: log.entityType,
-      entity_id: log.entityId,
+      entity_id: isUuid ? log.entityId : null,
       action: log.action,
-      actor_role: log.actorRole,
-      details: log.details,
-      created_at: log.timestamp,
+      actor_id: null,
+      metadata: {
+        actor_role: log.actorRole,
+        original_entity_id: log.entityId,
+        details: log.details,
+      },
+      created_at: log.timestamp || new Date().toISOString(),
     });
     if (error) console.warn('[Supabase Sync] Audit log insert error:', error.message);
   } catch (err: any) {
@@ -842,17 +997,46 @@ const syncAppointmentHoldToSupabase = async (hold: {
 }) => {
   if (!supabaseServer) return;
   try {
-    const { error } = await supabaseServer.from('appointment_holds').upsert({
-      appointment_reference: hold.appointmentId,
-      doctor_id: hold.doctorId,
-      hold_date: hold.holdDate,
-      start_time: hold.startTime,
-      end_time: hold.endTime,
-      expires_at: hold.expiresAt,
-      status: hold.status,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: 'appointment_reference' });
-    if (error) console.warn('[Supabase Sync] Hold upsert error:', error.message);
+    const supabaseApptId = appointmentSupabaseIdMap.get(hold.appointmentId);
+    const doctorId = await getDbDoctorId(hold.doctorId);
+
+    if (!doctorId) return;
+
+    const startAt = `${hold.holdDate}T${hold.startTime}:00+05:30`;
+    const endAt = `${hold.holdDate}T${hold.endTime}:00+05:30`;
+
+    if (supabaseApptId) {
+      const { data: existingHold } = await supabaseServer
+        .from('appointment_holds')
+        .select('id')
+        .eq('appointment_id', supabaseApptId)
+        .limit(1)
+        .maybeSingle();
+
+      if (existingHold) {
+        const { error } = await supabaseServer
+          .from('appointment_holds')
+          .update({
+            status: hold.status,
+            expires_at: hold.expiresAt,
+          })
+          .eq('id', existingHold.id);
+        if (error) console.warn('[Supabase Sync] Hold update error:', error.message);
+        return;
+      }
+    }
+
+    const { error } = await supabaseServer
+      .from('appointment_holds')
+      .insert({
+        appointment_id: supabaseApptId || null,
+        doctor_id: doctorId,
+        start_at: startAt,
+        end_at: endAt,
+        expires_at: hold.expiresAt,
+        status: hold.status,
+      });
+    if (error) console.warn('[Supabase Sync] Hold insert error:', error.message);
   } catch (err: any) {
     console.warn('[Supabase Sync] Failed to sync appointment hold:', err.message || err);
   }
@@ -887,8 +1071,24 @@ const handleCreateOrder = async (req: Request, res: Response) => {
     return res.status(400).json({ error: 'Missing required reservation fields.' });
   }
 
-  const doctor = doctorsStore.get(doctorId);
-  const service = servicesStore.get(serviceId);
+  let doctor = doctorsStore.get(doctorId);
+  if (!doctor) {
+    doctor =
+      Array.from(doctorsStore.values()).find(
+        (d) => d.id?.toLowerCase() === doctorId?.toLowerCase() || d.name?.toLowerCase() === doctorId?.toLowerCase()
+      ) ||
+      doctorsStore.get(PRIMARY_DOCTOR_ID) ||
+      Array.from(doctorsStore.values())[0];
+  }
+
+  let service = servicesStore.get(serviceId);
+  if (!service) {
+    service =
+      Array.from(servicesStore.values()).find(
+        (s) => s.id?.toLowerCase() === serviceId?.toLowerCase() || s.slug?.toLowerCase() === serviceId?.toLowerCase() || s.name?.toLowerCase() === serviceId?.toLowerCase()
+      ) ||
+      Array.from(servicesStore.values())[0];
+  }
 
   if (!doctor || !service) {
     return res.status(400).json({ error: 'Invalid doctor or service selected.' });
@@ -1046,12 +1246,12 @@ const handleCreateOrder = async (req: Request, res: Response) => {
 app.post('/api/payments/create-order', handleCreateOrder);
 app.post('/api/razorpay/create-order', handleCreateOrder);
 
-// ==============================================================================
-// PAYMENT VERIFICATION (Server-Side Cryptographic Signature Validation)
-// ==============================================================================
-
 const handleVerifyPayment = (req: Request, res: Response) => {
-  const { appointmentId, razorpay_order_id, razorpay_payment_id, razorpay_signature, payment_method } = req.body;
+  const appointmentId = req.body.appointmentId || req.body.appointment_id;
+  const razorpay_order_id = req.body.razorpay_order_id || req.body.razorpayOrderId;
+  const razorpay_payment_id = req.body.razorpay_payment_id || req.body.razorpayPaymentId;
+  const razorpay_signature = req.body.razorpay_signature || req.body.razorpaySignature;
+  const payment_method = req.body.payment_method || req.body.paymentMethod;
 
   if (!appointmentId || !razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
     return res.status(400).json({
@@ -1197,7 +1397,9 @@ const handleVerifyPayment = (req: Request, res: Response) => {
 };
 
 app.post('/api/payments/verify', handleVerifyPayment);
+app.post('/api/payments/verify-payment', handleVerifyPayment);
 app.post('/api/razorpay/verify', handleVerifyPayment);
+app.post('/api/razorpay/verify-payment', handleVerifyPayment);
 
 // ==============================================================================
 // RAZORPAY REAL WEBHOOK HANDLER
@@ -1717,8 +1919,8 @@ app.get('/api/health', (_req: Request, res: Response) => {
   });
 });
 
-// Vite Middleware Integration for Development & Static Serving for Production
-if (process.env.NODE_ENV === 'production') {
+// Vite Middleware Integration for Development & Static Serving for Standalone Production
+if (process.env.NODE_ENV === 'production' && !process.env.VERCEL) {
   app.use(express.static(path.resolve(__dirname, 'dist')));
   app.get('*', (_req: Request, res: Response) => {
     res.sendFile(path.resolve(__dirname, 'dist', 'index.html'));

@@ -60,6 +60,20 @@ app.use((req: any, _res: Response, next: any) => {
       req.rawBody = JSON.stringify(req.body);
     } catch {}
   }
+  // Serverless query parameter normalization
+  if (!req.query || Object.keys(req.query).length === 0 || req.query['0'] || req.query['1']) {
+    try {
+      const urlToParse = (req.url && req.url.startsWith('http')) ? req.url : `http://localhost${req.url || '/'}`;
+      const parsed = new URL(urlToParse);
+      const queryObj: Record<string, string> = {};
+      parsed.searchParams.forEach((val, key) => {
+        if (key !== '0' && key !== '1') {
+          queryObj[key] = val;
+        }
+      });
+      req.query = Object.assign({}, queryObj, req.query || {});
+    } catch {}
+  }
   next();
 });
 
@@ -1565,13 +1579,31 @@ app.get('/doctors', handleGetDoctors);
 
 // Real-Time Slot Availability
 const handleGetSlots = (req: Request, res: Response) => {
-  const { doctorId, date, serviceId } = req.query as { doctorId?: string; date?: string; serviceId?: string };
+  let doctorId = (req.query?.doctorId as string) || '';
+  let date = (req.query?.date as string) || '';
+  let serviceId = (req.query?.serviceId as string) || '';
+  let durationStr = (req.query?.serviceDurationMinutes as string) || '';
+
+  if (!doctorId || !date) {
+    try {
+      const urlToParse = (req.url && req.url.startsWith('http')) ? req.url : `http://localhost${req.url || '/'}`;
+      const parsed = new URL(urlToParse);
+      doctorId = doctorId || parsed.searchParams.get('doctorId') || '';
+      date = date || parsed.searchParams.get('date') || '';
+      serviceId = serviceId || parsed.searchParams.get('serviceId') || '';
+      durationStr = durationStr || parsed.searchParams.get('serviceDurationMinutes') || '';
+    } catch {}
+  }
+
+  if (!doctorId && doctorsStore.size > 0) {
+    doctorId = PRIMARY_DOCTOR_ID || Array.from(doctorsStore.values())[0]?.id || '';
+  }
 
   if (!doctorId || !date) {
     return res.status(400).json({ error: 'doctorId and date (YYYY-MM-DD) are required.' });
   }
 
-  let duration = 45;
+  let duration = parseInt(durationStr, 10) || 45;
   if (serviceId) {
     const service = servicesStore.get(serviceId);
     if (service) duration = service.durationMinutes;

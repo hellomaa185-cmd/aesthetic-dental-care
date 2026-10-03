@@ -22,11 +22,11 @@ export const WhatsAppFloatingButton: React.FC = () => {
   };
 
   return (
-    <div className="fixed bottom-6 left-6 z-40 select-none">
+    <div className="fixed bottom-[calc(4.25rem+env(safe-area-inset-bottom,0px))] right-4 md:bottom-6 md:left-6 md:right-auto z-40 select-none">
       
       {/* Expanded WhatsApp Concierge Dialog */}
       {isOpen && (
-        <div className="mb-3 w-[320px] sm:w-[360px] rounded-3xl bg-[#121413] border border-white/15 text-[#F7F5F0] p-5 shadow-2xl animate-reveal-up overflow-hidden backdrop-blur-md">
+        <div className="mb-3 w-[calc(100vw-2rem)] max-w-[340px] sm:max-w-[360px] rounded-3xl bg-[#121413] border border-white/15 text-[#F7F5F0] p-5 shadow-2xl animate-reveal-up overflow-hidden backdrop-blur-md">
           
           {/* Header */}
           <div className="flex items-center justify-between pb-3 border-b border-white/10">

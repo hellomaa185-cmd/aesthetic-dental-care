@@ -85,40 +85,67 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
           <div className="lg:col-span-5 relative">
             <div className="relative p-6 sm:p-8 rounded-2xl bg-[#EAE6DE]/50 border border-[#202321]/8 overflow-hidden backdrop-blur-xs">
               
-              <div className="flex items-center justify-between pb-4 border-b border-[#202321]/8 text-[11px] font-mono text-[#202321]/60">
+              {/* Card Header */}
+              <div className="flex items-center justify-between pb-4 border-b border-[#202321]/8 text-[11px] font-mono text-[#202321]/60 tracking-wider">
                 <span>ENAMEL CALIBRATION SPECIFICATION</span>
                 <span className="text-[#173A35] font-semibold">CUSTOM SHADE MAPPING</span>
               </div>
 
-              <div className="my-5 relative rounded-xl overflow-hidden bg-[#F7F5F0] border border-[#202321]/8 p-5 sm:p-6 flex flex-col justify-between min-h-[260px]">
+              {/* Specification Container */}
+              <div className="my-5 rounded-xl bg-[#F7F5F0] border border-[#202321]/8 p-5 sm:p-6 flex flex-col justify-between gap-5">
                 
-                <div className="space-y-4">
-                  <div className="flex justify-between items-baseline text-xs text-[#202321]/70 font-mono">
-                    <span>Optical Translucency Gradient</span>
-                    <span className="text-[#C7A46A] font-semibold">BL1/BL2 Staging</span>
-                  </div>
-
-                  <div className="space-y-2">
-                    <div className="h-4 rounded-md bg-[#173A35] w-full flex items-center justify-between px-3 text-[10px] font-mono text-[#F7F5F0]">
-                      <span>Incisal Zone</span>
-                      <span>Translucent Ceramic (98% L)</span>
-                    </div>
-                    <div className="h-4 rounded-md bg-[#78958B] w-4/5 flex items-center justify-between px-3 text-[10px] font-mono text-[#F7F5F0]">
-                      <span>Dentin Core</span>
-                      <span>High Chroma Structure</span>
-                    </div>
-                    <div className="h-4 rounded-md bg-[#EAE6DE] w-3/5 border border-[#202321]/10 flex items-center justify-between px-3 text-[10px] font-mono text-[#202321]">
-                      <span>Cervical Margin</span>
-                      <span>Natural Gumline Integration</span>
-                    </div>
-                  </div>
+                {/* Top Header Row */}
+                <div className="flex flex-wrap items-baseline justify-between gap-2 text-xs text-[#202321]/70 font-mono pb-1 border-b border-[#202321]/6">
+                  <span className="font-medium text-[#202321]/80">Optical Translucency Gradient</span>
+                  <span className="text-[#C7A46A] font-semibold tracking-wide">BL1 / BL2 Staging</span>
                 </div>
 
-                <div className="pt-4 border-t border-[#202321]/8 text-xs text-[#202321]/70 leading-relaxed font-serif italic">
+                {/* Structured Specification Rows with Calibration Indicator Bars */}
+                <div className="space-y-3.5">
+                  
+                  {/* Row 1: Incisal Zone */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-baseline justify-between gap-4 text-xs font-mono">
+                      <span className="text-[#202321]/80 font-medium whitespace-nowrap">Incisal Zone</span>
+                      <span className="text-[#173A35] font-semibold text-right">Translucent Ceramic (98% L)</span>
+                    </div>
+                    <div className="h-1.5 w-full rounded-full bg-[#202321]/10 overflow-hidden">
+                      <div className="h-full w-full rounded-full bg-[#173A35]" />
+                    </div>
+                  </div>
+
+                  {/* Row 2: Dentin Core */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-baseline justify-between gap-4 text-xs font-mono">
+                      <span className="text-[#202321]/80 font-medium whitespace-nowrap">Dentin Core</span>
+                      <span className="text-[#78958B] font-semibold text-right">High Chroma Structure</span>
+                    </div>
+                    <div className="h-1.5 w-full rounded-full bg-[#202321]/10 overflow-hidden">
+                      <div className="h-full w-[80%] rounded-full bg-[#78958B]" />
+                    </div>
+                  </div>
+
+                  {/* Row 3: Cervical Margin */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-baseline justify-between gap-4 text-xs font-mono">
+                      <span className="text-[#202321]/80 font-medium whitespace-nowrap">Cervical Margin</span>
+                      <span className="text-[#202321]/75 font-semibold text-right">Natural Gumline Integration</span>
+                    </div>
+                    <div className="h-1.5 w-full rounded-full bg-[#202321]/10 overflow-hidden">
+                      <div className="h-full w-[60%] rounded-full bg-[#C7A46A]" />
+                    </div>
+                  </div>
+
+                </div>
+
+                {/* Editorial Quotation */}
+                <div className="pt-4 border-t border-[#202321]/8 text-xs text-[#202321]/75 leading-relaxed font-serif italic">
                   &ldquo;We shape ceramic restorations as natural optical structures that harmonize seamlessly with your facial architecture and ambient light.&rdquo;
                 </div>
+
               </div>
 
+              {/* Card Footer */}
               <div className="flex items-center justify-between text-xs text-[#202321]/70 pt-1">
                 <div className="flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-[#173A35]" />

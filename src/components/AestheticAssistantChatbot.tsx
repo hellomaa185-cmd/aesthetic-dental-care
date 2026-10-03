@@ -96,13 +96,13 @@ export const AestheticAssistantChatbot: React.FC<AestheticAssistantChatbotProps>
   };
 
   return (
-    <div className="fixed bottom-6 right-6 z-40">
+    <div className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom,0px))] right-4 md:bottom-6 md:right-6 z-40">
       
       {/* FLOATING LAUNCHER BUTTON */}
       {!isOpen && (
         <button
           onClick={() => setIsOpen(true)}
-          className="group relative flex items-center gap-3 px-5 py-3.5 rounded-full bg-[#173A35] text-[#F7F5F0] hover:bg-[#202321] shadow-2xl transition-all duration-300 active:scale-95 border border-[#C7A46A]/30"
+          className="group relative flex items-center gap-3 px-4 py-3 sm:px-5 sm:py-3.5 rounded-full bg-[#173A35] text-[#F7F5F0] hover:bg-[#202321] shadow-2xl transition-all duration-300 active:scale-95 border border-[#C7A46A]/30 cursor-pointer"
           aria-label="Open Aesthetic Assistant"
         >
           <div className="w-2 h-2 rounded-full bg-[#C7A46A] animate-pulse" />
@@ -113,7 +113,7 @@ export const AestheticAssistantChatbot: React.FC<AestheticAssistantChatbotProps>
 
       {/* CHAT ATELIER PANEL */}
       {isOpen && (
-        <div className="w-[92vw] sm:w-[420px] h-[580px] max-h-[85vh] bg-[#F7F5F0] border border-[#202321]/15 rounded-3xl shadow-2xl flex flex-col overflow-hidden text-[#202321] animate-reveal-up">
+        <div className="w-[calc(100vw-2rem)] max-w-[420px] h-[580px] max-h-[80vh] sm:max-h-[85vh] bg-[#F7F5F0] border border-[#202321]/15 rounded-3xl shadow-2xl flex flex-col overflow-hidden text-[#202321] animate-reveal-up">
           
           {/* Panel Header */}
           <div className="px-5 py-4 bg-[#173A35] text-[#F7F5F0] flex items-center justify-between border-b border-[#202321]/10">

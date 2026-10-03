@@ -26,18 +26,18 @@ export const InteractiveTreatments: React.FC<InteractiveTreatmentsProps> = ({ on
   const activeService = services[activeIndex] || services[0] || CLINIC_SERVICES[0];
 
   return (
-    <section id="treatments" className="py-24 bg-[#F7F5F0] border-b border-[#202321]/8">
+    <section id="treatments" className="py-20 lg:py-28 bg-[#F7F5F0] border-b border-[#202321]/8">
       <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-12">
         
         {/* Section Header */}
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between pb-12 border-b border-[#202321]/8 gap-6">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between pb-10 sm:pb-12 border-b border-[#202321]/8 gap-6">
           <div>
-            <div className="flex items-center gap-2 text-xs uppercase tracking-widest font-mono text-[#78958B] mb-3">
+            <div className="flex items-center gap-2 text-xs tracking-widest font-mono text-[#78958B] mb-3">
               <span>03</span>
-              <span className="w-8 h-px bg-[#78958B]/40" />
+              <span className="w-8 h-px bg-[#78958B]/30" />
               <span>Specialized Disciplines</span>
             </div>
-            <h2 className="font-serif text-3xl sm:text-4xl text-[#202321] font-normal">
+            <h2 className="font-serif text-3xl sm:text-4xl lg:text-5xl text-[#202321] font-normal tracking-tight">
               Curated Treatment Portfolio
             </h2>
           </div>
@@ -48,7 +48,7 @@ export const InteractiveTreatments: React.FC<InteractiveTreatmentsProps> = ({ on
         </div>
 
         {/* 2-Column Editorial Treatment Architecture */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 pt-12 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-16 pt-10 sm:pt-12 items-start">
           
           {/* LEFT: INTERACTIVE EDITORIAL LIST */}
           <div className="lg:col-span-6 divide-y divide-[#202321]/8 border-y border-[#202321]/8">
@@ -60,20 +60,20 @@ export const InteractiveTreatments: React.FC<InteractiveTreatmentsProps> = ({ on
                   key={service.id}
                   onMouseEnter={() => setActiveIndex(idx)}
                   onClick={() => setActiveIndex(idx)}
-                  className={`py-6 sm:py-7 cursor-pointer transition-all duration-300 group flex items-start justify-between gap-4 ${
-                    isActive ? 'pl-3' : 'hover:pl-2'
+                  className={`py-5 sm:py-6 cursor-pointer transition-all duration-300 group flex items-start justify-between gap-4 ${
+                    isActive ? 'pl-3 sm:pl-4 bg-[#EAE6DE]/20' : 'hover:pl-2'
                   }`}
                 >
                   <div className="flex items-baseline gap-4 sm:gap-6">
-                    <span className={`font-mono text-xs transition-colors ${
+                    <span className={`font-mono text-xs transition-colors tabular-nums ${
                       isActive ? 'text-[#173A35] font-bold' : 'text-[#202321]/40 group-hover:text-[#202321]'
                     }`}>
                       {formattedIndex}
                     </span>
 
                     <div>
-                      <h3 className={`font-serif text-xl sm:text-2xl transition-all ${
-                        isActive ? 'text-[#173A35] font-medium translate-x-1' : 'text-[#202321] group-hover:text-[#173A35]'
+                      <h3 className={`font-serif text-lg sm:text-xl lg:text-2xl transition-all ${
+                        isActive ? 'text-[#173A35] font-medium' : 'text-[#202321] group-hover:text-[#173A35]'
                       }`}>
                         {service.name}
                       </h3>
@@ -88,8 +88,8 @@ export const InteractiveTreatments: React.FC<InteractiveTreatmentsProps> = ({ on
                     </div>
                   </div>
 
-                  <div className="shrink-0 pt-1.5">
-                    <div className={`w-8 h-8 rounded-full border flex items-center justify-center transition-all ${
+                  <div className="shrink-0 pt-1">
+                    <div className={`w-8 h-8 rounded-lg border flex items-center justify-center transition-all ${
                       isActive
                         ? 'border-[#173A35] bg-[#173A35] text-[#F7F5F0]'
                         : 'border-[#202321]/15 text-[#202321]/40 group-hover:border-[#173A35] group-hover:text-[#173A35]'
@@ -103,22 +103,22 @@ export const InteractiveTreatments: React.FC<InteractiveTreatmentsProps> = ({ on
           </div>
 
           {/* RIGHT: DYNAMIC DISCIPLINE SHOWCASE CONTAINER */}
-          <div className="lg:col-span-6 sticky top-28">
-            <div className="p-8 sm:p-10 rounded-3xl bg-[#EAE6DE]/70 border border-[#202321]/8 space-y-8 backdrop-blur-xs">
+          <div className="lg:col-span-6 sticky top-24">
+            <div className="p-6 sm:p-8 rounded-2xl bg-[#EAE6DE]/60 border border-[#202321]/8 space-y-6 backdrop-blur-xs">
               
               {/* Category & Badge */}
               <div className="flex items-center justify-between pb-4 border-b border-[#202321]/8">
-                <span className="text-xs uppercase tracking-widest font-mono text-[#78958B]">
+                <span className="text-xs tracking-widest font-mono text-[#78958B]">
                   DISCIPLINE {activeIndex + 1} OF {services.length}
                 </span>
-                <span className="font-mono text-xs text-[#173A35] font-semibold">
-                  INR 120 (₹100 + ₹20)
+                <span className="font-mono text-xs text-[#173A35] font-semibold tabular-nums">
+                  Consultation Fee: ₹120 (₹100 + ₹20)
                 </span>
               </div>
 
               {/* Title & Description */}
-              <div className="space-y-4">
-                <h4 className="font-serif text-3xl text-[#202321] font-normal leading-snug">
+              <div className="space-y-3">
+                <h4 className="font-serif text-2xl sm:text-3xl text-[#202321] font-normal leading-snug">
                   {activeService?.name}
                 </h4>
                 <p className="text-xs sm:text-sm text-[#202321]/75 leading-relaxed font-light">
@@ -127,13 +127,13 @@ export const InteractiveTreatments: React.FC<InteractiveTreatmentsProps> = ({ on
               </div>
 
               {/* Key Highlights */}
-              <div className="space-y-2.5 pt-2">
-                <span className="text-[10px] font-mono uppercase tracking-wider text-[#202321]/40 block font-semibold">
+              <div className="space-y-2.5 pt-1">
+                <span className="text-[10px] font-mono uppercase tracking-wider text-[#202321]/50 block font-semibold">
                   CLINICAL PROTOCOL SPECIFICATIONS
                 </span>
                 {activeService?.highlights?.map((highlight, hIdx) => (
-                  <div key={hIdx} className="flex items-start gap-3 text-xs text-[#202321]/80 font-light">
-                    <div className="w-4 h-4 rounded-full bg-[#173A35]/10 border border-[#173A35]/20 flex items-center justify-center shrink-0 mt-0.5 text-[#173A35]">
+                  <div key={hIdx} className="flex items-start gap-2.5 text-xs text-[#202321]/80 font-light">
+                    <div className="w-4 h-4 rounded-md bg-[#173A35]/10 border border-[#173A35]/20 flex items-center justify-center shrink-0 mt-0.5 text-[#173A35]">
                       <Check className="w-2.5 h-2.5" />
                     </div>
                     <span>{highlight}</span>
@@ -141,19 +141,19 @@ export const InteractiveTreatments: React.FC<InteractiveTreatmentsProps> = ({ on
                 ))}
               </div>
 
-              {/* Reservation CTA */}
-              <div className="pt-6 border-t border-[#202321]/8 flex items-center justify-between gap-4">
-                <div className="text-xs font-mono text-[#202321]/60">
-                  <span>Reserved Slot Hold: </span>
-                  <span className="text-[#173A35] font-semibold">10 Mins</span>
+              {/* Direct Booking CTA */}
+              <div className="pt-4 border-t border-[#202321]/8 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] font-mono text-[#202321]/50 block uppercase">1-on-1 Specialist Window</span>
+                  <span className="text-xs font-mono font-semibold text-[#173A35]">10-Minute Reserved Hold</span>
                 </div>
 
                 <button
                   onClick={() => onSelectService(activeService)}
-                  className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-[#173A35] hover:bg-[#202321] text-[#F7F5F0] text-xs font-medium tracking-wide uppercase transition-colors group shadow-xs cursor-pointer"
+                  className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-[#173A35] text-[#F7F5F0] text-xs font-semibold tracking-wider uppercase hover:bg-[#202321] transition-colors shadow-xs active:scale-98 cursor-pointer focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-[#173A35]"
                 >
                   <span>Reserve Consultation</span>
-                  <ArrowUpRight className="w-3.5 h-3.5 text-[#C7A46A] group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                  <ArrowUpRight className="w-3.5 h-3.5 text-[#C7A46A]" />
                 </button>
               </div>
 

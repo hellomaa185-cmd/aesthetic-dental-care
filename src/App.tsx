@@ -110,30 +110,30 @@ export default function App() {
             />
 
             {/* 08. Bottom Editorial Call to Action */}
-            <section className="py-24 bg-[#F7F5F0] text-center border-b border-[#202321]/8">
+            <section className="py-20 lg:py-28 bg-[#F7F5F0] text-center border-b border-[#202321]/8">
               <div className="max-w-3xl mx-auto px-6 sm:px-8">
-                <div className="text-xs font-mono uppercase tracking-widest text-[#78958B] mb-3">
+                <div className="text-xs font-mono tracking-widest text-[#78958B] mb-3">
                   RESERVATION ATELIER
                 </div>
-                <h3 className="font-serif text-3xl sm:text-5xl text-[#202321] font-normal leading-tight">
+                <h3 className="font-serif text-3xl sm:text-4xl lg:text-5xl text-[#202321] font-normal leading-tight text-balance">
                   Begin your consultation.
                 </h3>
-                <p className="text-sm sm:text-base text-[#202321]/70 font-light mt-4 max-w-xl mx-auto">
+                <p className="text-sm sm:text-base text-[#202321]/70 font-light mt-4 max-w-xl mx-auto leading-relaxed">
                   Reserve a dedicated consultation slot with our master ceramists and surgeons. Protected with 10-minute temporary holds.
                 </p>
 
                 <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
                   <button
                     onClick={() => handleOpenBooking()}
-                    className="inline-flex items-center gap-2.5 px-8 py-4 rounded-full bg-[#173A35] text-[#F7F5F0] text-xs font-semibold tracking-wider uppercase hover:bg-[#202321] transition-colors shadow-sm cursor-pointer"
+                    className="inline-flex items-center gap-2.5 px-8 py-3.5 rounded-lg bg-[#173A35] text-[#F7F5F0] text-xs font-semibold tracking-wider uppercase hover:bg-[#202321] transition-colors shadow-xs cursor-pointer focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-[#173A35]"
                   >
-                    <span>Reserve Appointment (₹120)</span>
+                    <span>Reserve Consultation</span>
                     <ArrowUpRight className="w-4 h-4 text-[#C7A46A]" />
                   </button>
 
                   <button
                     onClick={() => setCurrentView('oral-guide')}
-                    className="px-6 py-4 rounded-full border border-[#202321]/15 text-[#202321] text-xs font-medium tracking-wider uppercase hover:border-[#173A35] hover:text-[#173A35] transition-colors cursor-pointer"
+                    className="px-6 py-3.5 rounded-lg border border-[#202321]/15 text-[#202321] text-xs font-medium tracking-wider uppercase hover:border-[#173A35] hover:text-[#173A35] transition-colors cursor-pointer focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-[#173A35]"
                   >
                     Clinical Search Guide
                   </button>

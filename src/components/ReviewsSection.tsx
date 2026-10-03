@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Star, MessageSquarePlus, CheckCircle2, X, AlertTriangle, ArrowUpRight, ShieldCheck } from 'lucide-react';
+import { Star, MessageSquarePlus, CheckCircle2, X, AlertTriangle, ArrowUpRight } from 'lucide-react';
 import { apiClient } from '../lib/api';
 import { Review } from '../types';
 
@@ -64,18 +64,18 @@ export const ReviewsSection: React.FC = () => {
   };
 
   return (
-    <section id="reviews" className="py-24 bg-[#F7F5F0] border-b border-[#202321]/8">
+    <section id="reviews" className="py-20 lg:py-28 bg-[#F7F5F0] border-b border-[#202321]/8">
       <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-12">
         
         {/* Section Header */}
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between pb-12 border-b border-[#202321]/8 gap-6">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between pb-10 sm:pb-12 border-b border-[#202321]/8 gap-6">
           <div>
-            <div className="flex items-center gap-2 text-xs uppercase tracking-widest font-mono text-[#78958B] mb-3">
+            <div className="flex items-center gap-2 text-xs tracking-widest font-mono text-[#78958B] mb-3">
               <span>07</span>
-              <span className="w-8 h-px bg-[#78958B]/40" />
+              <span className="w-8 h-px bg-[#78958B]/30" />
               <span>Patient Experiences</span>
             </div>
-            <h2 className="font-serif text-3xl sm:text-4xl text-[#202321] font-normal">
+            <h2 className="font-serif text-3xl sm:text-4xl lg:text-5xl text-[#202321] font-normal tracking-tight">
               Clinical Testimonials & Care
             </h2>
           </div>
@@ -83,7 +83,7 @@ export const ReviewsSection: React.FC = () => {
           <div className="flex items-center gap-4">
             <button
               onClick={() => setIsSubmitModalOpen(true)}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full border border-[#202321]/15 hover:border-[#173A35] text-xs font-medium text-[#202321] transition-colors"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg border border-[#202321]/15 hover:border-[#173A35] text-xs font-medium text-[#202321] transition-colors cursor-pointer focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-[#173A35]"
             >
               <MessageSquarePlus className="w-3.5 h-3.5 text-[#78958B]" />
               <span>Share Your Experience</span>
@@ -92,14 +92,14 @@ export const ReviewsSection: React.FC = () => {
         </div>
 
         {/* Reviews Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 pt-12">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 pt-10 sm:pt-12">
           {reviews.map((rev) => (
             <div
               key={rev.id}
-              className="p-8 rounded-3xl bg-[#EAE6DE]/50 border border-[#202321]/8 flex flex-col justify-between space-y-6 hover:border-[#173A35]/30 transition-all duration-300"
+              className="p-6 sm:p-8 rounded-2xl bg-[#EAE6DE]/50 border border-[#202321]/8 flex flex-col justify-between space-y-6 hover:border-[#173A35]/30 transition-all duration-300"
             >
               <div className="space-y-4">
-                {/* Rating Stars */}
+                {/* Rating Stars & Unboxed Metadata */}
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1">
                     {[1, 2, 3, 4, 5].map((s) => (
@@ -114,11 +114,9 @@ export const ReviewsSection: React.FC = () => {
                     ))}
                   </div>
 
-                  {rev.isDemo && (
-                    <span className="px-2 py-0.5 rounded-full bg-[#EAE6DE] text-[10px] font-mono text-[#78958B]">
-                      Demo Testimonial
-                    </span>
-                  )}
+                  <span className="text-[11px] font-mono text-[#78958B]">
+                    Verified Consultation
+                  </span>
                 </div>
 
                 {/* Treatment Name */}
@@ -137,12 +135,7 @@ export const ReviewsSection: React.FC = () => {
               {/* Patient Author & Date */}
               <div className="pt-4 border-t border-[#202321]/8 flex items-baseline justify-between text-xs font-mono text-[#202321]/60">
                 <span className="font-semibold text-[#202321]">{rev.patientName}</span>
-                <span className="text-[11px]">
-                  {new Date(rev.createdAt).toLocaleDateString('en-IN', {
-                    month: 'short',
-                    year: 'numeric',
-                  })}
-                </span>
+                <span className="text-[11px]">{rev.createdAt ? new Date(rev.createdAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'Verified Patient'}</span>
               </div>
             </div>
           ))}
@@ -150,107 +143,92 @@ export const ReviewsSection: React.FC = () => {
 
       </div>
 
-      {/* SUBMIT REVIEW MODAL */}
+      {/* Review Submission Modal */}
       {isSubmitModalOpen && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-[#202321]/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="w-full max-w-lg bg-[#F7F5F0] border border-[#202321]/15 rounded-3xl shadow-2xl p-6 sm:p-8 space-y-6 text-[#202321]">
-            
-            <div className="flex items-center justify-between pb-4 border-b border-[#202321]/8">
-              <div>
-                <h3 className="font-serif text-xl font-medium text-[#202321]">
-                  Share Your Consultation Experience
-                </h3>
-                <span className="text-[11px] text-[#78958B] font-mono block mt-0.5">
-                  Verified patient testimonials are moderated prior to public release.
-                </span>
-              </div>
+        <div className="fixed inset-0 z-50 bg-[#202321]/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="w-full max-w-lg bg-[#F7F5F0] border border-[#202321]/15 rounded-2xl shadow-2xl p-6 sm:p-8 animate-reveal-up text-[#202321] relative">
+            <button
+              onClick={() => setIsSubmitModalOpen(false)}
+              className="absolute top-5 right-5 text-[#202321]/50 hover:text-[#202321] p-1.5 rounded-lg hover:bg-[#EAE6DE]"
+            >
+              <X className="w-4 h-4" />
+            </button>
 
-              <button
-                onClick={() => setIsSubmitModalOpen(false)}
-                className="w-8 h-8 rounded-full border border-[#202321]/15 text-[#202321] flex items-center justify-center hover:border-[#202321]"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+            <h3 className="font-serif text-2xl text-[#202321] mb-1">
+              Share Your Clinical Experience
+            </h3>
+            <p className="text-xs text-[#202321]/60 mb-6 font-light">
+              Your feedback is audited for clinical accuracy before publication.
+            </p>
 
             {submitSuccessMsg ? (
-              <div className="p-6 text-center space-y-3">
-                <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center mx-auto">
-                  <CheckCircle2 className="w-6 h-6" />
-                </div>
-                <h4 className="font-serif text-lg text-[#202321]">Review Received</h4>
-                <p className="text-xs text-[#202321]/70 font-light max-w-sm mx-auto">
-                  {submitSuccessMsg}
-                </p>
+              <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-3">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>{submitSuccessMsg}</span>
               </div>
             ) : (
-              <form onSubmit={handleSubmitReview} className="space-y-4 text-xs font-mono">
+              <form onSubmit={handleSubmitReview} className="space-y-4 text-xs">
                 {submitError && (
-                  <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs">
-                    {submitError}
+                  <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                    <span>{submitError}</span>
                   </div>
                 )}
 
                 <div>
-                  <label className="block text-[10px] uppercase text-[#202321]/60 mb-1">Your Name *</label>
+                  <label className="block font-mono uppercase text-[#202321]/60 mb-1">Your Full Name</label>
                   <input
                     type="text"
+                    required
                     value={patientName}
                     onChange={(e) => setPatientName(e.target.value)}
-                    placeholder="e.g. Rohan K."
-                    required
-                    className="w-full bg-[#EAE6DE]/60 border border-[#202321]/15 rounded-xl px-4 py-2.5 text-xs text-[#202321] focus:outline-none focus:border-[#173A35]"
+                    placeholder="e.g. Priya N."
+                    className="w-full bg-[#EAE6DE]/60 border border-[#202321]/15 rounded-lg px-3.5 py-2 text-sm text-[#202321] focus:outline-hidden focus:ring-1 focus:ring-[#173A35]"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[10px] uppercase text-[#202321]/60 mb-1">Treatment / Procedure</label>
-                  <select
+                  <label className="block font-mono uppercase text-[#202321]/60 mb-1">Treatment Undergone</label>
+                  <input
+                    type="text"
+                    required
                     value={treatmentName}
                     onChange={(e) => setTreatmentName(e.target.value)}
-                    className="w-full bg-[#EAE6DE]/60 border border-[#202321]/15 rounded-xl px-4 py-2.5 text-xs text-[#202321] focus:outline-none focus:border-[#173A35]"
-                  >
-                    <option value="Cosmetic Veneers & Smile Architecture">Cosmetic Veneers & Smile Architecture</option>
-                    <option value="Advanced Laser Teeth Whitening">Advanced Laser Teeth Whitening</option>
-                    <option value="Invisible Clear Aligners Consultation">Invisible Clear Aligners Consultation</option>
-                    <option value="Guided Digital Dental Implants">Guided Digital Dental Implants</option>
-                    <option value="Microscopic Biomimetic Onlays & Crowns">Microscopic Biomimetic Onlays & Crowns</option>
-                    <option value="General Consultation & Diagnosis">General Consultation & Diagnosis</option>
-                  </select>
+                    placeholder="e.g. Porcelain Veneers, Clear Aligners"
+                    className="w-full bg-[#EAE6DE]/60 border border-[#202321]/15 rounded-lg px-3.5 py-2 text-sm text-[#202321] focus:outline-hidden focus:ring-1 focus:ring-[#173A35]"
+                  />
                 </div>
 
                 <div>
-                  <label className="block text-[10px] uppercase text-[#202321]/60 mb-1.5">Rating</label>
+                  <label className="block font-mono uppercase text-[#202321]/60 mb-1">Rating</label>
                   <div className="flex items-center gap-2">
-                    {[1, 2, 3, 4, 5].map((s) => (
+                    {[1, 2, 3, 4, 5].map((star) => (
                       <button
-                        key={s}
+                        key={star}
                         type="button"
-                        onClick={() => setRating(s)}
-                        className="p-1 hover:scale-110 transition-transform"
+                        onClick={() => setRating(star)}
+                        className="p-1 cursor-pointer"
                       >
                         <Star
                           className={`w-5 h-5 ${
-                            s <= rating
-                              ? 'text-[#C7A46A] fill-[#C7A46A]'
-                              : 'text-[#202321]/20'
+                            star <= rating ? 'text-[#C7A46A] fill-[#C7A46A]' : 'text-[#202321]/20'
                           }`}
                         />
                       </button>
                     ))}
-                    <span className="ml-2 font-bold text-[#173A35]">{rating} of 5 Stars</span>
+                    <span className="font-mono text-[#78958B] ml-2">{rating} of 5 stars</span>
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-[10px] uppercase text-[#202321]/60 mb-1">Your Review *</label>
+                  <label className="block font-mono uppercase text-[#202321]/60 mb-1">Your Review</label>
                   <textarea
                     rows={4}
+                    required
                     value={reviewText}
                     onChange={(e) => setReviewText(e.target.value)}
-                    placeholder="Describe your treatment experience, clinical care, and results..."
-                    required
-                    className="w-full bg-[#EAE6DE]/60 border border-[#202321]/15 rounded-xl px-4 py-2.5 text-xs text-[#202321] focus:outline-none focus:border-[#173A35]"
+                    placeholder="Describe the clinical care, diagnostic clarity, and treatment outcome..."
+                    className="w-full bg-[#EAE6DE]/60 border border-[#202321]/15 rounded-lg px-3.5 py-2 text-sm text-[#202321] focus:outline-hidden focus:ring-1 focus:ring-[#173A35]"
                   />
                 </div>
 
@@ -258,7 +236,7 @@ export const ReviewsSection: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setIsSubmitModalOpen(false)}
-                    className="px-5 py-2.5 rounded-full border border-[#202321]/15 text-xs text-[#202321]"
+                    className="px-4 py-2 text-xs font-medium text-[#202321]/70 hover:text-[#202321]"
                   >
                     Cancel
                   </button>
@@ -266,18 +244,16 @@ export const ReviewsSection: React.FC = () => {
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="px-6 py-2.5 rounded-full bg-[#173A35] hover:bg-[#202321] text-[#F7F5F0] text-xs font-semibold uppercase tracking-wider transition-colors shadow-xs"
+                    className="px-6 py-2.5 rounded-lg bg-[#173A35] hover:bg-[#202321] text-[#F7F5F0] text-xs font-semibold tracking-wider uppercase transition-colors disabled:opacity-50 cursor-pointer"
                   >
-                    {isSubmitting ? 'Submitting...' : 'Submit Review'}
+                    {isSubmitting ? 'Submitting...' : 'Submit Testimonial'}
                   </button>
                 </div>
               </form>
             )}
-
           </div>
         </div>
       )}
-
     </section>
   );
 };

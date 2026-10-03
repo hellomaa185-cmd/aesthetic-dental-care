@@ -13,7 +13,7 @@ export const Footer: React.FC<FooterProps> = ({
   onOpenQAMatrix,
 }) => {
   return (
-    <footer className="bg-[#202321] text-[#F7F5F0] text-xs py-16 border-t border-[#F7F5F0]/10">
+    <footer className="bg-[#202321] text-[#F7F5F0] text-xs py-16 sm:py-20 border-t border-[#F7F5F0]/10">
       <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-12">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-10 pb-12 border-b border-[#F7F5F0]/10">
           
@@ -44,8 +44,8 @@ export const Footer: React.FC<FooterProps> = ({
           <div className="space-y-3">
             <div className="text-[10px] font-mono uppercase tracking-wider text-[#F7F5F0]/50">HOURS & CONSULTATIONS</div>
             <div className="text-xs text-[#F7F5F0]/80 space-y-1 font-light leading-relaxed">
-              <div>Monday – Saturday: 09:00 – 20:00</div>
-              <div>Sunday: 10:00 – 14:00</div>
+              <div>Monday – Friday: 09:00 – 18:00</div>
+              <div>Saturday & Sunday: Closed for Lab Staging</div>
               <div className="text-[#C7A46A] pt-1 font-mono text-[11px]">
                 Consultation: ₹100 Doctor Fee + ₹20 Booking Fee
               </div>
@@ -62,7 +62,7 @@ export const Footer: React.FC<FooterProps> = ({
                 {onOpenStaffPortal && (
                   <button
                     onClick={onOpenStaffPortal}
-                    className="text-left text-[#78958B] hover:text-[#F7F5F0] transition-colors"
+                    className="text-left text-[#78958B] hover:text-[#F7F5F0] transition-colors cursor-pointer"
                   >
                     Staff Reception Desk →
                   </button>
@@ -70,7 +70,7 @@ export const Footer: React.FC<FooterProps> = ({
                 {onOpenAdminPortal && (
                   <button
                     onClick={onOpenAdminPortal}
-                    className="text-left text-[#78958B] hover:text-[#F7F5F0] transition-colors"
+                    className="text-left text-[#78958B] hover:text-[#F7F5F0] transition-colors cursor-pointer"
                   >
                     Clinical Administration →
                   </button>
@@ -95,7 +95,7 @@ export const Footer: React.FC<FooterProps> = ({
                 <span>·</span>
                 <button
                   onClick={onOpenQAMatrix}
-                  className="text-[#78958B] hover:text-[#F7F5F0] transition-colors underline"
+                  className="text-[#78958B] hover:text-[#F7F5F0] transition-colors underline cursor-pointer"
                 >
                   Diagnostics Matrix
                 </button>

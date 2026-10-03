@@ -5,10 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
-    "build": "vite build && esbuild api/index.ts --bundle --platform=node --target=node18 --format=esm --outfile=api/index.js --external:@google/genai --external:@supabase/supabase-js --external:express --external:dotenv && esbuild api/health.ts --bundle --platform=node --target=node18 --format=esm --outfile=api/health.js",
+    "build": "vite build",
     "start": "tsx server.ts",
     "preview": "vite preview",
-    "clean": "rm -rf dist server.js api/index.js api/health.js",
+    "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit"
   },
   "dependencies": {

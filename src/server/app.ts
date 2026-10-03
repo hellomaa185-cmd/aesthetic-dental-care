@@ -12,7 +12,7 @@ import {
   INITIAL_STAFF,
   INITIAL_REVIEWS,
   PRIMARY_DOCTOR_ID,
-} from '../data/mockData';
+} from '../data/mockData.ts';
 import {
   Appointment,
   Payment,
@@ -29,7 +29,7 @@ import {
   BlockedSlot,
   DoctorException,
   DoctorWorkingHours,
-} from '../types';
+} from '../types/index.ts';
 
 dotenv.config();
 

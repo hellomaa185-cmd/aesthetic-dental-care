@@ -1,5 +1,5 @@
 import type { Request, Response } from 'express';
-import app from '../src/server/app';
+import app from '../src/server/app.ts';
 
 export default function handler(req: Request, res: Response) {
   // 1. CORS headers on all Vercel invocations

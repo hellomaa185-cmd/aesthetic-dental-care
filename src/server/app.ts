@@ -597,8 +597,10 @@ const syncAppointmentToSupabase = async (appt: Appointment) => {
     else if (appt.status === 'cancelled' || appt.status === 'payment_failed') statusEnum = 'cancelled';
     else if (appt.status === 'completed') statusEnum = 'completed';
 
-    let existingSupabaseId = appointmentSupabaseIdMap.get(appt.id);
-    if (!existingSupabaseId) {
+    // 1. Check if we already have a mapped Supabase ID or existing row at this slot
+    let targetRowId: string | null = appointmentSupabaseIdMap.get(appt.id) || null;
+
+    if (!targetRowId) {
       const { data: existingAtSlot } = await supabaseServer
         .from('appointments')
         .select('id, status')
@@ -609,25 +611,97 @@ const syncAppointmentToSupabase = async (appt: Appointment) => {
         .maybeSingle();
 
       if (existingAtSlot) {
-        existingSupabaseId = existingAtSlot.id;
+        targetRowId = existingAtSlot.id;
         appointmentSupabaseIdMap.set(appt.id, existingAtSlot.id);
       }
     }
 
-    if (existingSupabaseId) {
-      const { error } = await supabaseServer
+    if (targetRowId) {
+      const { error: updateErr } = await supabaseServer
         .from('appointments')
         .update({
           patient_id: patientId,
+          doctor_id: doctorId,
           service_id: serviceId,
+          start_at: startAt,
+          end_at: endAt,
           status: statusEnum,
           patient_notes: appt.notes || null,
           updated_at: new Date().toISOString(),
         })
-        .eq('id', existingSupabaseId);
-      if (error) console.warn('[Supabase Sync] Appointment update error:', error.message);
+        .eq('id', targetRowId);
+
+      if (updateErr) {
+        if (updateErr.message.includes('appointments_no_overlap') || updateErr.code === '23P01') {
+          // Cancel any other conflicting uncancelled rows at this slot
+          await supabaseServer
+            .from('appointments')
+            .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+            .eq('doctor_id', doctorId)
+            .eq('start_at', startAt)
+            .neq('id', targetRowId);
+
+          // Retry updating target row
+          await supabaseServer
+            .from('appointments')
+            .update({
+              patient_id: patientId,
+              service_id: serviceId,
+              status: statusEnum,
+              patient_notes: appt.notes || null,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', targetRowId);
+        } else {
+          console.warn('[Supabase Sync] Appointment update notice:', updateErr.message);
+        }
+      }
     } else {
-      const { data, error } = await supabaseServer
+      // If inserting a new appointment, check if an active row already exists at this slot to reuse it
+      if (statusEnum !== 'cancelled') {
+        const { data: conflictingRows } = await supabaseServer
+          .from('appointments')
+          .select('id, status')
+          .eq('doctor_id', doctorId)
+          .eq('start_at', startAt)
+          .neq('status', 'cancelled');
+
+        if (conflictingRows && conflictingRows.length > 0) {
+          const existingSlotRow = conflictingRows[0];
+          targetRowId = existingSlotRow.id;
+          if (targetRowId) {
+            appointmentSupabaseIdMap.set(appt.id, targetRowId);
+          }
+
+          if (conflictingRows.length > 1) {
+            const duplicateIds = conflictingRows.slice(1).map((r) => r.id);
+            await supabaseServer
+              .from('appointments')
+              .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+              .in('id', duplicateIds);
+          }
+
+          if (targetRowId) {
+            await supabaseServer
+              .from('appointments')
+              .update({
+                patient_id: patientId,
+                doctor_id: doctorId,
+                service_id: serviceId,
+                start_at: startAt,
+                end_at: endAt,
+                status: statusEnum,
+                patient_notes: appt.notes || null,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', targetRowId);
+          }
+
+          return;
+        }
+      }
+
+      const { data, error: insertErr } = await supabaseServer
         .from('appointments')
         .insert({
           patient_id: patientId,
@@ -640,35 +714,39 @@ const syncAppointmentToSupabase = async (appt: Appointment) => {
         })
         .select('id')
         .single();
-      if (error) {
-        console.warn('[Supabase Sync] Appointment insert error:', error.message);
-        // If conflict error occurred, find the conflicting row and update it
-        const { data: conflictRow } = await supabaseServer
-          .from('appointments')
-          .select('id')
-          .eq('doctor_id', doctorId)
-          .eq('start_at', startAt)
-          .limit(1)
-          .maybeSingle();
-        if (conflictRow) {
-          appointmentSupabaseIdMap.set(appt.id, conflictRow.id);
-          await supabaseServer
+
+      if (insertErr) {
+        if (insertErr.message.includes('appointments_no_overlap') || insertErr.code === '23P01') {
+          const { data: conflictRow } = await supabaseServer
             .from('appointments')
-            .update({
-              patient_id: patientId,
-              service_id: serviceId,
-              status: statusEnum,
-              patient_notes: appt.notes || null,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', conflictRow.id);
+            .select('id')
+            .eq('doctor_id', doctorId)
+            .eq('start_at', startAt)
+            .limit(1)
+            .maybeSingle();
+
+          if (conflictRow) {
+            appointmentSupabaseIdMap.set(appt.id, conflictRow.id);
+            await supabaseServer
+              .from('appointments')
+              .update({
+                patient_id: patientId,
+                service_id: serviceId,
+                status: statusEnum,
+                patient_notes: appt.notes || null,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', conflictRow.id);
+          }
+        } else {
+          console.warn('[Supabase Sync] Appointment insert notice:', insertErr.message);
         }
       } else if (data) {
         appointmentSupabaseIdMap.set(appt.id, data.id);
       }
     }
   } catch (err: any) {
-    console.warn('[Supabase Sync] Failed to sync appointment:', err.message || err);
+    console.warn('[Supabase Sync] Non-blocking sync notice:', err?.message || err);
   }
 };
 

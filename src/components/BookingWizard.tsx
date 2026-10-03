@@ -72,6 +72,7 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
   const [selectedSlot, setSelectedSlot] = useState<string>('');
   const [availableSlots, setAvailableSlots] = useState<TimeSlot[]>([]);
   const [isLoadingSlots, setIsLoadingSlots] = useState(false);
+  const [slotLoadError, setSlotLoadError] = useState<string | null>(null);
 
   // Patient Details (Minimal & Privacy-first)
   const [patientName, setPatientName] = useState('');
@@ -131,8 +132,6 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
     }
   }, [isOpen, preselectedService, preselectedDoctor, services, doctors]);
 
-  const [slotLoadError, setSlotLoadError] = useState<string | null>(null);
-
   // Query real-time available slots whenever doctor, date, or service changes
   useEffect(() => {
     if (selectedDoctor && selectedDate) {
@@ -159,7 +158,8 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
       }
     } catch (err: any) {
       console.error('Failed to load slots:', err);
-      setSlotLoadError(err.message || 'We could not load availability right now. Please try again.');
+      // ONLY set slotLoadError for genuine network / non-2xx API failures
+      setSlotLoadError(err.message || 'We could not refresh availability right now.');
       setAvailableSlots([]);
       setSelectedSlot('');
     } finally {
@@ -167,50 +167,96 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
     }
   };
 
-  // Intelligent Next Available Day Finder
-  const handleFindNextAvailableDay = async () => {
-    if (!selectedDoctor || !selectedDate) return;
-    setIsLoadingSlots(true);
-    setSlotLoadError(null);
+  // Helper: Format date into clean editorial format (Asia/Kolkata)
+  const formatEditorialDate = (dateStr: string) => {
+    if (!dateStr) return '';
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const dateObj = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+    return new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Kolkata',
+      weekday: 'long',
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+    }).format(dateObj);
+  };
 
-    const [y, m, d] = selectedDate.split('-').map(Number);
+  const getWeekdayName = (dateStr: string) => {
+    if (!dateStr) return '';
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const dateObj = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+    return new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Kolkata',
+      weekday: 'long',
+    }).format(dateObj);
+  };
+
+  // Real Next-Working-Day Finder based on Doctor's schedule
+  const findNextWorkingDate = (startDateStr: string): string | null => {
+    if (!selectedDoctor) return null;
+    const [y, m, d] = startDateStr.split('-').map(Number);
     const cursor = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
 
     for (let i = 1; i <= 14; i++) {
       cursor.setUTCDate(cursor.getUTCDate() + 1);
-      const dayFormatter = new Intl.DateTimeFormat('en-US', {
+      const dayName = new Intl.DateTimeFormat('en-US', {
         timeZone: 'Asia/Kolkata',
         weekday: 'long',
-      });
-      const dayOfWeek = dayFormatter.format(cursor);
+      }).format(cursor);
 
-      const schedule = selectedDoctor.schedule?.find(
-        (s) => s.dayOfWeek.toLowerCase() === dayOfWeek.toLowerCase()
-      );
+      let isWorking = false;
+      if (selectedDoctor.schedule && selectedDoctor.schedule.length > 0) {
+        const s = selectedDoctor.schedule.find(
+          (item) => item.dayOfWeek.toLowerCase() === dayName.toLowerCase()
+        );
+        if (s) isWorking = s.isActive;
+      } else if (selectedDoctor.consultationDays && selectedDoctor.consultationDays.length > 0) {
+        isWorking = selectedDoctor.consultationDays.some(
+          (cd) => cd.toLowerCase() === dayName.toLowerCase()
+        );
+      } else {
+        isWorking = !['saturday', 'sunday'].includes(dayName.toLowerCase());
+      }
 
-      if (schedule && schedule.isActive) {
-        const year = cursor.getUTCFullYear();
-        const month = String(cursor.getUTCMonth() + 1).padStart(2, '0');
-        const day = String(cursor.getUTCDate()).padStart(2, '0');
-        const nextDateStr = `${year}-${month}-${day}`;
-
-        try {
-          const res = await apiClient.getAvailableSlots(selectedDoctor.id, nextDateStr, selectedService?.id);
-          const avail = (res?.slots || []).filter((s) => s.isAvailable);
-          if (avail.length > 0) {
-            setSelectedDate(nextDateStr);
-            setAvailableSlots(res.slots);
-            setSelectedSlot(avail[0].time);
-            setIsLoadingSlots(false);
-            return;
-          }
-        } catch {}
+      if (isWorking) {
+        const cy = cursor.getUTCFullYear();
+        const cm = String(cursor.getUTCMonth() + 1).padStart(2, '0');
+        const cd = String(cursor.getUTCDate()).padStart(2, '0');
+        return `${cy}-${cm}-${cd}`;
       }
     }
-
-    setIsLoadingSlots(false);
-    setSlotLoadError('No open slots found in the next 14 days. Please choose another date or doctor.');
+    return null;
   };
+
+  const selectedWeekday = getWeekdayName(selectedDate);
+
+  const isWorkingDay = (() => {
+    if (!selectedDoctor) return false;
+    if (selectedDoctor.schedule && selectedDoctor.schedule.length > 0) {
+      const s = selectedDoctor.schedule.find(
+        (item) => item.dayOfWeek.toLowerCase() === selectedWeekday.toLowerCase()
+      );
+      if (s) return s.isActive;
+    }
+    if (selectedDoctor.consultationDays && selectedDoctor.consultationDays.length > 0) {
+      return selectedDoctor.consultationDays.some(
+        (cd) => cd.toLowerCase() === selectedWeekday.toLowerCase()
+      );
+    }
+    return !['saturday', 'sunday'].includes(selectedWeekday.toLowerCase());
+  })();
+
+  const nextWorkingDate = findNextWorkingDate(selectedDate);
+  const openSlotsCount = availableSlots.filter(s => s.isAvailable).length;
+
+  // Explicit 5 States
+  const currentState: 'LOADING' | 'API_ERROR' | 'CLOSED_DAY' | 'NO_REMAINING_SLOTS' | 'AVAILABLE' = (() => {
+    if (isLoadingSlots) return 'LOADING';
+    if (slotLoadError) return 'API_ERROR';
+    if (!isWorkingDay) return 'CLOSED_DAY';
+    if (openSlotsCount === 0) return 'NO_REMAINING_SLOTS';
+    return 'AVAILABLE';
+  })();
 
   // Live countdown timer for 10-minute hold window
   useEffect(() => {
@@ -434,8 +480,6 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
     return hour >= 13;
   });
 
-  const openSlotsCount = availableSlots.filter(s => s.isAvailable).length;
-
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-[#202321]/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 animate-reveal-up">
       <div className="relative w-full max-w-2xl bg-[#F7F5F0] border border-[#202321]/15 rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden text-[#202321] my-4 sm:my-8">
@@ -627,180 +671,172 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
                 <p className="text-xs text-[#202321]/60 font-light mt-1">Live availability calculated in Asia/Kolkata timezone with 10-minute hold protection.</p>
               </div>
 
-              {/* Date Input with Quick Jump Helpers */}
-              <div className="space-y-2">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-mono uppercase text-[#202321]/60 mb-1.5">
-                      Consultation Date (Asia/Kolkata)
-                    </label>
-                    <div className="relative">
-                      <input
-                        type="date"
-                        min={minDate}
-                        value={selectedDate}
-                        onChange={(e) => setSelectedDate(e.target.value)}
-                        className="w-full bg-[#EAE6DE]/60 border border-[#202321]/15 rounded-lg px-4 py-2.5 text-sm text-[#202321] font-mono focus:outline-hidden focus:ring-1 focus:ring-[#173A35] focus:border-[#173A35]"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="p-3 rounded-lg bg-[#EAE6DE]/40 border border-[#202321]/8 flex flex-col justify-center text-xs">
-                    <span className="text-[#202321]/50 uppercase text-[10px] font-mono">Specialist Faculty Schedule</span>
-                    <span className="font-medium text-[#202321] mt-0.5">
-                      {selectedDoctor?.name} · {selectedDoctor?.consultationDays?.map((d) => d.slice(0, 3)).join(', ') || 'Mon–Fri'}
-                    </span>
+              {/* Date Input with Specialist Working Hours Context */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-mono uppercase text-[#202321]/60 mb-1.5">
+                    Consultation Date (Asia/Kolkata)
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="date"
+                      min={minDate}
+                      value={selectedDate}
+                      onChange={(e) => setSelectedDate(e.target.value)}
+                      className="w-full bg-[#EAE6DE]/60 border border-[#202321]/15 rounded-lg px-4 py-2.5 text-sm text-[#202321] font-mono focus:outline-hidden focus:ring-1 focus:ring-[#173A35] focus:border-[#173A35]"
+                    />
                   </div>
                 </div>
 
-                {/* Quick Date Chips */}
-                <div className="flex flex-wrap items-center gap-2 pt-1 text-xs font-mono">
-                  <span className="text-[#202321]/40 text-[11px]">Quick Jump:</span>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedDate(minDate)}
-                    className={`px-2.5 py-1 rounded-md border text-[11px] transition-colors cursor-pointer ${
-                      selectedDate === minDate
-                        ? 'bg-[#173A35] text-[#F7F5F0] border-[#173A35]'
-                        : 'bg-[#EAE6DE]/50 text-[#202321]/70 border-[#202321]/10 hover:border-[#173A35]'
-                    }`}
-                  >
-                    Today
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedDate('2026-10-23')}
-                    className={`px-2.5 py-1 rounded-md border text-[11px] transition-colors cursor-pointer ${
-                      selectedDate === '2026-10-23'
-                        ? 'bg-[#173A35] text-[#F7F5F0] border-[#173A35]'
-                        : 'bg-[#EAE6DE]/50 text-[#202321]/70 border-[#202321]/10 hover:border-[#173A35]'
-                    }`}
-                  >
-                    Friday 23 Oct
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedDate('2026-10-26')}
-                    className={`px-2.5 py-1 rounded-md border text-[11px] transition-colors cursor-pointer ${
-                      selectedDate === '2026-10-26'
-                        ? 'bg-[#173A35] text-[#F7F5F0] border-[#173A35]'
-                        : 'bg-[#EAE6DE]/50 text-[#202321]/70 border-[#202321]/10 hover:border-[#173A35]'
-                    }`}
-                  >
-                    Monday 26 Oct
-                  </button>
+                <div className="p-3 rounded-lg bg-[#EAE6DE]/40 border border-[#202321]/8 flex flex-col justify-center text-xs">
+                  <span className="text-[#202321]/50 uppercase text-[10px] font-mono">Specialist Faculty Schedule</span>
+                  <span className="font-medium text-[#202321] mt-0.5">
+                    {selectedDoctor?.name} · {selectedDoctor?.consultationDays?.map((d) => d.slice(0, 3)).join(', ') || 'Mon–Fri (09:00–18:00)'}
+                  </span>
                 </div>
               </div>
 
-              {/* Slot Grid Presentation */}
+              {/* Status Header */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between text-xs font-mono text-[#202321]/60">
                   <span>
-                    REAL-TIME AVAILABLE SLOTS
-                    {availableSlots.length > 0 && !isLoadingSlots && (
-                      <span className="text-[#173A35] font-semibold ml-1.5">
-                        ({openSlotsCount} open)
+                    {currentState === 'AVAILABLE' && (
+                      <>
+                        REAL-TIME AVAILABLE SLOTS
+                        <span className="text-[#173A35] font-semibold ml-1.5 tabular-nums">
+                          ({openSlotsCount} open)
+                        </span>
+                      </>
+                    )}
+                    {currentState === 'CLOSED_DAY' && (
+                      <span className="text-[#78958B] font-medium">CLINIC SCHEDULE STATUS</span>
+                    )}
+                    {currentState === 'NO_REMAINING_SLOTS' && (
+                      <span className="text-[#202321]/60 font-medium">NO AVAILABLE SLOTS</span>
+                    )}
+                    {currentState === 'LOADING' && (
+                      <span className="text-[#173A35] flex items-center gap-1">
+                        <Loader2 className="w-3 h-3 animate-spin"/> Checking live availability...
                       </span>
                     )}
+                    {currentState === 'API_ERROR' && (
+                      <span className="text-rose-700 font-medium">SERVICE STATUS</span>
+                    )}
                   </span>
-                  {isLoadingSlots && (
-                    <span className="text-[#173A35] flex items-center gap-1">
-                      <Loader2 className="w-3 h-3 animate-spin"/> Checking live availability...
-                    </span>
-                  )}
+                  <span className="text-[11px] text-[#202321]/40">
+                    Asia/Kolkata Time
+                  </span>
                 </div>
 
-                {isLoadingSlots ? (
+                {/* 1. LOADING STATE */}
+                {currentState === 'LOADING' && (
                   <div className="p-8 text-center text-xs text-[#202321]/60 bg-[#EAE6DE]/30 rounded-xl border border-[#202321]/8 flex flex-col items-center justify-center gap-2">
                     <Loader2 className="w-5 h-5 animate-spin text-[#173A35]" />
                     <span>Checking live availability in Asia/Kolkata...</span>
                   </div>
-                ) : openSlotsCount === 0 ? (
-                  (() => {
-                    const emptyState = (() => {
-                      if (slotLoadError) {
-                        return {
-                          title: "We couldn't load availability right now.",
-                          desc: slotLoadError,
-                          buttonText: 'Try Again',
-                          isSearch: false,
-                        };
-                      }
+                )}
 
-                      if (!selectedDoctor || !selectedDate) {
-                        return {
-                          title: 'Select an appointment date',
-                          desc: 'Choose a date on the calendar to view doctor availability.',
-                          buttonText: null,
-                          isSearch: false,
-                        };
-                      }
+                {/* 2. API / NETWORK ERROR STATE */}
+                {currentState === 'API_ERROR' && (
+                  <div className="p-8 text-center bg-rose-50/70 rounded-2xl border border-rose-200/60 space-y-4">
+                    <div className="space-y-1">
+                      <span className="text-[10px] font-mono uppercase tracking-widest text-rose-700 block">
+                        Connection Notice
+                      </span>
+                      <h4 className="font-serif text-xl text-rose-900 font-normal">
+                        Availability Temporarily Unavailable
+                      </h4>
+                      <p className="text-xs text-rose-800/80 font-light max-w-sm mx-auto leading-relaxed">
+                        We couldn't refresh the specialist's schedule right now. Please try again.
+                      </p>
+                    </div>
 
-                      const [y, m, d] = selectedDate.split('-').map(Number);
-                      const dateObj = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
-                      const dayName = new Intl.DateTimeFormat('en-US', {
-                        timeZone: 'Asia/Kolkata',
-                        weekday: 'long',
-                      }).format(dateObj);
+                    <button
+                      type="button"
+                      onClick={() => loadSlots(selectedDoctor!.id, selectedDate, selectedService?.id)}
+                      className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#173A35] text-[#F7F5F0] text-xs font-semibold uppercase tracking-wider hover:bg-[#202321] transition-colors cursor-pointer shadow-xs"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      <span>Try Again</span>
+                    </button>
+                  </div>
+                )}
 
-                      const schedule = selectedDoctor.schedule?.find(
-                        (s) => s.dayOfWeek.toLowerCase() === dayName.toLowerCase()
-                      );
-                      const isWorking = schedule?.isActive;
+                {/* 3. CLOSED DAY STATE (Saturdays, Sundays, or Non-Working Days) */}
+                {currentState === 'CLOSED_DAY' && (
+                  <div className="p-8 text-center bg-[#EAE6DE]/40 rounded-2xl border border-[#202321]/8 space-y-5">
+                    <div className="space-y-2">
+                      <span className="text-[11px] font-mono uppercase tracking-widest text-[#78958B] block">
+                        {formatEditorialDate(selectedDate)}
+                      </span>
+                      <h4 className="font-serif text-2xl text-[#202321] font-normal">
+                        Clinic Closed
+                      </h4>
+                      <p className="text-xs text-[#202321]/70 font-light max-w-sm mx-auto leading-relaxed">
+                        Consultations are available Monday through Friday. Saturdays and Sundays are reserved for clinical lab staging and sterilization.
+                      </p>
+                    </div>
 
-                      if (!isWorking) {
-                        return {
-                          title: 'Clinic closed on this day',
-                          desc: `${selectedDoctor.name} does not have clinical hours on ${dayName}s.`,
-                          buttonText: 'Check Next Available Day',
-                          isSearch: true,
-                        };
-                      }
-
-                      if (selectedDate === minDate) {
-                        return {
-                          title: 'No appointments remaining today',
-                          desc: 'All consultation windows for today have passed or are booked.',
-                          buttonText: 'Check Next Available Day',
-                          isSearch: true,
-                        };
-                      }
-
-                      return {
-                        title: 'Fully booked for this date',
-                        desc: 'All appointment slots for this date are currently reserved.',
-                        buttonText: 'Check Next Available Day',
-                        isSearch: true,
-                      };
-                    })();
-
-                    return (
-                      <div className="p-6 text-center text-xs text-[#202321]/70 bg-[#EAE6DE]/30 rounded-xl border border-[#202321]/8 space-y-3">
-                        <div className="space-y-1">
-                          <p className="font-semibold text-[#202321]">{emptyState.title}</p>
-                          <p className="font-light text-[#202321]/60 text-[11px]">{emptyState.desc}</p>
+                    {nextWorkingDate && (
+                      <div className="pt-4 border-t border-[#202321]/8 space-y-3">
+                        <div className="text-[11px] font-mono text-[#202321]/60">
+                          <span className="uppercase text-[10px] text-[#202321]/40 block mb-0.5">Next Available Consultation Day</span>
+                          <span className="font-semibold text-[#173A35]">{formatEditorialDate(nextWorkingDate)}</span>
                         </div>
-                        {emptyState.buttonText && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (emptyState.isSearch) {
-                                handleFindNextAvailableDay();
-                              } else {
-                                loadSlots(selectedDoctor!.id, selectedDate, selectedService?.id);
-                              }
-                            }}
-                            className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-lg bg-[#173A35] text-[#F7F5F0] text-xs font-medium hover:bg-[#202321] transition-colors cursor-pointer shadow-xs"
-                          >
-                            <span>{emptyState.buttonText}</span>
-                            <ArrowRight className="w-3.5 h-3.5" />
-                          </button>
-                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => setSelectedDate(nextWorkingDate)}
+                          className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-[#173A35] text-[#F7F5F0] text-xs font-semibold tracking-wider uppercase hover:bg-[#202321] transition-colors cursor-pointer shadow-xs"
+                        >
+                          <span>View {getWeekdayName(nextWorkingDate)} Availability</span>
+                          <ArrowRight className="w-3.5 h-3.5 text-[#C7A46A]" />
+                        </button>
                       </div>
-                    );
-                  })()
-                ) : (
-                  <div className="space-y-4 max-h-[260px] overflow-y-auto pr-1">
+                    )}
+                  </div>
+                )}
+
+                {/* 4. NO REMAINING SLOTS (Fully Booked on a working day) */}
+                {currentState === 'NO_REMAINING_SLOTS' && (
+                  <div className="p-8 text-center bg-[#EAE6DE]/40 rounded-2xl border border-[#202321]/8 space-y-5">
+                    <div className="space-y-2">
+                      <span className="text-[11px] font-mono uppercase tracking-widest text-[#78958B] block">
+                        {formatEditorialDate(selectedDate)}
+                      </span>
+                      <h4 className="font-serif text-2xl text-[#202321] font-normal">
+                        {selectedDate === minDate ? 'No Remaining Slots Today' : 'Fully Booked'}
+                      </h4>
+                      <p className="text-xs text-[#202321]/70 font-light max-w-sm mx-auto leading-relaxed">
+                        {selectedDate === minDate
+                          ? 'All consultation windows for today have concluded or are currently reserved.'
+                          : 'All appointment slots for this date are currently reserved.'}
+                      </p>
+                    </div>
+
+                    {nextWorkingDate && (
+                      <div className="pt-4 border-t border-[#202321]/8 space-y-3">
+                        <div className="text-[11px] font-mono text-[#202321]/60">
+                          <span className="uppercase text-[10px] text-[#202321]/40 block mb-0.5">Next Available Consultation Day</span>
+                          <span className="font-semibold text-[#173A35]">{formatEditorialDate(nextWorkingDate)}</span>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => setSelectedDate(nextWorkingDate)}
+                          className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-[#173A35] text-[#F7F5F0] text-xs font-semibold tracking-wider uppercase hover:bg-[#202321] transition-colors cursor-pointer shadow-xs"
+                        >
+                          <span>View Next Available Date</span>
+                          <ArrowRight className="w-3.5 h-3.5 text-[#C7A46A]" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* 5. AVAILABLE SLOTS */}
+                {currentState === 'AVAILABLE' && (
+                  <div className="space-y-4 max-h-[280px] overflow-y-auto pr-1">
                     
                     {/* Morning Session */}
                     {morningSlots.length > 0 && (
@@ -835,7 +871,7 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
                     )}
 
                     {/* Lunch Break Notice */}
-                    <div className="p-2 rounded-lg bg-[#EAE6DE]/30 border border-[#202321]/6 text-center text-[11px] font-mono text-[#202321]/50">
+                    <div className="p-2.5 rounded-lg bg-[#EAE6DE]/30 border border-[#202321]/6 text-center text-[11px] font-mono text-[#202321]/50">
                       12:30 PM – 02:00 PM · Specialist Break & Enamel Lab Staging
                     </div>
 
@@ -885,7 +921,7 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
 
                 <button
                   onClick={() => setStep(4)}
-                  disabled={!selectedSlot}
+                  disabled={!selectedSlot || currentState !== 'AVAILABLE'}
                   className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-[#173A35] text-[#F7F5F0] text-xs font-semibold tracking-wider uppercase hover:bg-[#202321] transition-colors disabled:opacity-40 cursor-pointer"
                 >
                   <span>Patient Details</span>
